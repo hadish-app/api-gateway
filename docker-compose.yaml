@@ -1,0 +1,20 @@
+name: hadish
+services:
+  nginx:
+    image: openresty/openresty:alpine
+    container_name: api_gateway
+    ports:
+      - 80:80
+    volumes:
+      - ./configs/nginx.conf:/usr/local/openresty/nginx/conf/nginx.conf:ro
+      - ./logs:/var/log/nginx
+    restart: unless-stopped
+    networks:
+      - core-api-gateway-private
+    # Security settings
+    security_opt:
+      - no-new-privileges:true
+
+networks:
+  core-api-gateway-private:
+    driver: bridge

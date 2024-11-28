@@ -1,0 +1,32 @@
+# Logs and runtime data
+logs/
+*.log
+*.pid
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Docker and environment files
+.docker/
+docker-compose.override.yml
+.env*
+!.env.example
+
+# Temporary files
+*.tmp
+*.temp
+tmp/
+temp/
