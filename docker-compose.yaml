@@ -3,6 +3,8 @@ services:
   nginx:
     image: openresty/openresty:alpine
     container_name: api_gateway
+    env_file:
+      - .env
     ports:
       - 80:80
     volumes:
