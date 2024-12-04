@@ -9,6 +9,7 @@ services:
       - 80:80
     volumes:
       - ./configs/nginx.conf:/usr/local/openresty/nginx/conf/nginx.conf:ro
+      - ./configs/banned_ips.conf:/etc/nginx/banned_ips.conf
       - ./logs:/var/log/nginx
     restart: unless-stopped
     networks:
