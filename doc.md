@@ -210,4 +210,222 @@ Logs are stored in the `logs` directory:
 - Logs are automatically rotated
 - Banned IPs are automatically removed after ban expiration
 - Configuration is reloaded without downtime
+
+## Deployment Guide
+
+### Prerequisites
+- Docker Engine (20.10.0 or higher)
+- Docker Compose (2.0.0 or higher)
+- Available ports:
+  - 80 (API Gateway)
+  - System Admin service port
+
+### Development Environment Setup
+
+1. **Get Local IP Address**
+   ```bash
+   # On macOS/Linux
+   ifconfig | grep "inet " | grep -v 127.0.0.1
+   
+   # Expected output example:
+   # inet 192.168.1.101 netmask 0xffffff00 broadcast 192.168.1.255
+   ```
+
+2. **Update Environment Variables**
+   - Copy the example environment file:
+     ```bash
+     cp .env.example .env
+     ```
+   - Update the `ADMIN_SERVICE_URL` in `.env`:
+     ```bash
+     # Replace IP_ADDRESS with your local IP (e.g., 192.168.1.101)
+     # Replace PORT with your System Admin service port (e.g., 58316)
+     ADMIN_SERVICE_URL=http://IP_ADDRESS:PORT
+     ```
+
+3. **Create Required Directories**
+   ```bash
+   mkdir -p logs
+   mkdir -p configs/conf.d
+   mkdir -p configs/lua/modules
+   ```
+
+4. **Set File Permissions**
+   ```bash
+   # Make log directory writable
+   chmod 777 logs
+   
+   # Make banned_ips.conf writable
+   chmod 666 configs/banned_ips.conf
+   ```
+
+### Production Deployment
+
+1. **Environment Configuration**
+   - Review and adjust all settings in `.env`:
+     ```bash
+     # Adjust rate limiting
+     RATE_LIMIT_REQUESTS=10
+     RATE_LIMIT_BURST=5
+     
+     # Adjust ban duration
+     BAN_DURATION_SECONDS=1800  # 30 minutes
+     
+     # Adjust logging
+     LOG_LEVEL=warn
+     LOG_BUFFER_SIZE=64k
+     LOG_FLUSH_INTERVAL=5s
+     
+     # Adjust client settings
+     CLIENT_MAX_BODY_SIZE=10M
+     CLIENT_BODY_TIMEOUT=60
+     CLIENT_HEADER_TIMEOUT=60
+     ```
+
+2. **Container Deployment**
+   ```bash
+   # Start the container
+   docker compose up -d
+   
+   # Verify deployment
+   docker compose ps
+   
+   # Check logs
+   docker compose logs -f
+   ```
+
+3. **Health Check**
+   ```bash
+   # Test the health endpoint
+   curl http://localhost/admin/health
+   
+   # Expected response:
+   {
+     "status": "ok",
+     "message": "Healthy",
+     "dbLatency": 0.964334,
+     "eventStoreLatency": 7.859875,
+     "documentDbLatency": 8.085542,
+     "dbMessage": "Database is connected",
+     "eventStoreMessage": "EventStore is connected",
+     "documentDbMessage": "DocumentDB is connected",
+     "uptime": 960.899615812,
+     "timestamp": "2024-12-13T16:20:55.174Z"
+   }
+   ```
+
+### Container Management
+
+1. **Start Container**
+   ```bash
+   docker compose up -d
+   ```
+
+2. **Stop Container**
+   ```bash
+   docker compose down
+   ```
+
+3. **View Logs**
+   ```bash
+   # View all logs
+   docker compose logs
+   
+   # Follow logs
+   docker compose logs -f
+   
+   # View specific logs
+   docker exec api_gateway tail -f /var/log/nginx/error.log
+   docker exec api_gateway tail -f /var/log/nginx/access.log
+   docker exec api_gateway tail -f /var/log/nginx/security.log
+   ```
+
+4. **Reload Configuration**
+   ```bash
+   docker exec api_gateway nginx -s reload
+   ```
+
+### Troubleshooting
+
+1. **Check Container Status**
+   ```bash
+   docker compose ps
+   docker stats api_gateway
+   ```
+
+2. **Verify Network Connectivity**
+   ```bash
+   # Test admin service connection
+   curl -v http://localhost/admin/health
+   
+   # Check container network
+   docker network inspect hadish_core-api-gateway-private
+   ```
+
+3. **Common Issues**
+
+   a. Container fails to start:
+   - Check port conflicts:
+     ```bash
+     lsof -i :80
+     ```
+   - Check log files:
+     ```bash
+     docker compose logs api_gateway
+     ```
+
+   b. Admin service unreachable:
+   - Verify service IP and port:
+     ```bash
+     # Get your local IP
+     ifconfig | grep "inet " | grep -v 127.0.0.1
+     
+     # Test direct connection to admin service
+     curl http://IP_ADDRESS:PORT/api/health
+     ```
+   - Check network connectivity:
+     ```bash
+     docker exec api_gateway ping IP_ADDRESS
+     ```
+
+   c. Rate limiting issues:
+   - Check rate limit settings in `.env`
+   - Monitor security logs:
+     ```bash
+     docker exec api_gateway tail -f /var/log/nginx/security.log
+     ```
+
+### Performance Tuning
+
+1. **Worker Processes**
+   - Adjust `worker_processes` in `nginx.conf`:
+     ```nginx
+     # Auto-detect CPU cores (recommended)
+     worker_processes auto;
+     
+     # Or set manually
+     worker_processes 4;
+     ```
+
+2. **Worker Connections**
+   - Adjust in `.env`:
+     ```bash
+     WORKER_CONNECTIONS=2048
+     ```
+
+3. **Buffer Sizes**
+   - Adjust in `.env` for high-traffic scenarios:
+     ```bash
+     CLIENT_BODY_BUFFER_SIZE=32k
+     CLIENT_HEADER_BUFFER_SIZE=2k
+     LARGE_CLIENT_HEADER_BUFFERS_NUMBER=4
+     LARGE_CLIENT_HEADER_BUFFERS_SIZE=8k
+     ```
+
+4. **Logging Performance**
+   - Adjust buffer and flush settings:
+     ```bash
+     LOG_BUFFER_SIZE=64k
+     LOG_FLUSH_INTERVAL=5s
+     ```
   
