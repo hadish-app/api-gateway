@@ -9,11 +9,7 @@ services:
       - 80:80
     volumes:
       - ./configs/nginx.conf:/usr/local/openresty/nginx/conf/nginx.conf:ro
-      - ./configs/conf.d:/etc/nginx/conf.d:ro
       - ./configs/banned_ips.conf:/etc/nginx/banned_ips.conf
-      - ./configs/lua/modules/utils.lua:/usr/local/openresty/nginx/lua/utils.lua:ro
-      - ./configs/lua/modules/config.lua:/usr/local/openresty/nginx/lua/config.lua:ro
-      - ./configs/lua/modules/ip_ban.lua:/usr/local/openresty/nginx/lua/ip_ban.lua:ro
       - ./logs:/var/log/nginx
     restart: unless-stopped
     networks:

@@ -1,170 +1,210 @@
 # API Gateway Documentation
 
+## Table of Contents
+1. [Overview](#overview)
+2. [Architecture](#architecture)
+3. [Features](#features)
+4. [Configuration](#configuration)
+5. [Security Features](#security-features)
+6. [Logging System](#logging-system)
+7. [Testing](#testing)
+8. [Deployment](#deployment)
+9. [Troubleshooting](#troubleshooting)
+10. [Development Guide](#development-guide)
+
 ## Overview
-This API Gateway serves as a reverse proxy and security layer for backend services. It provides rate limiting, IP banning, and security headers.
+This API Gateway serves as a robust security layer and traffic management system for backend services. Built using OpenResty (a powerful Nginx distribution with Lua support), it provides rate limiting, IP banning, and request routing capabilities.
+
+## Architecture
+
+### Components
+- **OpenResty/Nginx**: Core server handling HTTP requests
+- **Lua Scripts**: Custom security and routing logic
+- **Docker**: Containerization and deployment
+- **Shared Memory Zones**: For storing rate limiting and IP ban data
+
+### Network Flow
+1. Client makes request to API Gateway
+2. Request passes through security checks (rate limiting, IP ban check)
+3. If passed, request is proxied to appropriate backend service
+4. Response is returned to client
 
 ## Features
-- Rate limiting (10 req/s with burst of 5)
-- IP banning after 3 rate limit violations
-- Configurable ban duration
-- Automatic unbanning
-- Security headers
-- Detailed logging
-- Modular configuration
 
-## Project Structure
+### Core Features
+- Request routing and proxying
+- Health checks for backend services
+- Detailed logging with millisecond precision
+- Docker-based deployment
 
-### Root Directory
-```
-.
-├── docker-compose.yaml    # Container orchestration
-├── .env                   # Environment variables
-├── .gitignore            # Git ignore rules
-├── doc.md                # Project documentation
-├── configs/              # Configuration files
-├── logs/                 # Log files directory
-└── test_api_gateway.sh   # Test script
-```
+### Security Features
+1. **Rate Limiting**
+   - 10 requests per second with burst of 5
+   - Configurable limits per endpoint
+   - Automatic violation tracking
 
-### Configuration Files (`configs/`)
-```
-configs/
-├── nginx.conf            # Main NGINX configuration
-├── banned_ips.conf       # Dynamic banned IPs list
-├── conf.d/              # Modular NGINX configurations
-│   ├── basic.conf       # Basic NGINX settings
-│   ├── security.conf    # Security settings
-│   ├── logging.conf     # Logging configuration
-│   ├── lua.conf         # Lua module loading
-│   └── upstreams.conf   # Proxy settings
-└── lua/modules/         # Lua modules
-    ├── utils.lua        # Utility functions
-    ├── config.lua       # Configuration management
-    └── ip_ban.lua       # IP banning functionality
-```
+2. **IP Banning**
+   - Automatic IP banning after 3 rate limit violations
+   - Configurable ban duration (default: 10 seconds)
+   - Automatic unbanning system
 
-### File Descriptions
-
-#### Root Directory Files
-- `docker-compose.yaml`: Defines the container setup, including volume mounts, environment variables, and networking.
-- `.env`: Contains environment variables for configuring the API Gateway behavior.
-- `.gitignore`: Specifies which files Git should ignore.
-- `doc.md`: Comprehensive project documentation (this file).
-- `test_api_gateway.sh`: Test script to verify API Gateway functionality.
-
-#### NGINX Configuration Files
-- `configs/nginx.conf`: Main NGINX configuration file that includes:
-  - Worker process settings
-  - Environment variable declarations
-  - Event loop configuration
-  - HTTP server settings
-  - Server block definitions
-
-- `configs/banned_ips.conf`: Dynamic file managed by Lua code that contains:
-  - Currently banned IP addresses
-  - Ban duration information
-  - Error response templates
-
-#### Modular Configuration Files (`configs/conf.d/`)
-- `basic.conf`: Basic NGINX settings including:
-  - Buffer sizes
-  - Timeouts
-  - MIME types
-  - Basic performance settings
-
-- `security.conf`: Security-related configurations:
-  - Rate limiting zones
-  - IP blacklist settings
-  - Security headers
-  - Content Security Policy
-
-- `logging.conf`: Logging configuration including:
-  - Log formats
-  - Log file locations
-  - Buffer settings
-  - Log rotation settings
-
-- `lua.conf`: Lua module configuration:
-  - Module loading
-  - Package paths
-  - Initialization code
-  - Worker initialization
-
-- `upstreams.conf`: Proxy and upstream settings:
-  - Proxy headers
-  - Timeouts
-  - SSL settings
-  - Load balancing configuration
-
-#### Lua Modules (`configs/lua/modules/`)
-- `utils.lua`: Utility functions including:
-  - ISO8601 timestamp generation
-  - Duration formatting
-  - Common helper functions
-
-- `config.lua`: Configuration management:
-  - Environment variable loading
-  - Default value handling
-  - Configuration validation
-
-- `ip_ban.lua`: IP banning functionality:
-  - Ban implementation
-  - Ban checking
-  - Rate limit tracking
-  - Ban file management
-
-#### Log Files (`logs/`)
-- `access.log`: HTTP access logs in JSON format containing:
-  - Request details
-  - Response status
-  - Timing information
-  - Client information
-
-- `security.log`: Security event logs including:
-  - Rate limit violations
-  - IP ban events
-  - Security-related warnings
-  - Ban/unban operations
-
-- `error.log`: Error logs containing:
-  - NGINX errors
-  - Lua errors
-  - Configuration issues
-  - System-level problems
-
-### File Permissions
-- Configuration files: Read-only in container
-- Log files: Write access for NGINX worker process
-- Banned IPs file: Write access for Lua code
-
-### File Updates
-- Most configuration files are static
-- `banned_ips.conf` is dynamically updated by Lua code
-- Log files are automatically rotated
-- Configuration reloads do not require container restart
+3. **Request Filtering**
+   - Path-based access control
+   - Method restrictions
+   - Header validation
 
 ## Configuration
-All configuration is done through environment variables in the `.env` file:
 
-### Service URLs
-- `ADMIN_SERVICE_URL`: Backend service URL
+### Environment Variables
+File: `.env`
+```env
+ADMIN_SERVICE_URL=http://192.168.1.104:62390
+BAN_DURATION_SECONDS=10  # Ban duration in seconds
+```
 
-### Rate Limiting
-- `RATE_LIMIT_REQUESTS`: Requests per second (default: 10)
-- `RATE_LIMIT_BURST`: Burst size (default: 5)
-- `RATE_LIMIT_WINDOW`: Time window for violations (default: 60s)
-- `MAX_RATE_LIMIT_VIOLATIONS`: Violations before ban (default: 3)
+### Docker Configuration
+File: `docker-compose.yaml`
+```yaml
+services:
+  nginx:
+    image: openresty/openresty:alpine
+    container_name: api_gateway
+    env_file:
+      - .env
+    ports:
+      - 80:80
+    volumes:
+      - ./configs/nginx.conf:/usr/local/openresty/nginx/conf/nginx.conf:ro
+      - ./configs/banned_ips.conf:/etc/nginx/banned_ips.conf
+      - ./logs:/var/log/nginx
+```
 
-### IP Banning
-- `BAN_DURATION_SECONDS`: Ban duration (default: 1800s)
+### Nginx Configuration
+File: `configs/nginx.conf`
 
-### Logging
-- `LOG_LEVEL`: Log level (default: warn)
-- `LOG_BUFFER_SIZE`: Log buffer size (default: 4k)
-- `LOG_FLUSH_INTERVAL`: Log flush interval (default: 1s)
+Key sections:
+1. **Shared Memory Zones**
+   ```nginx
+   lua_shared_dict ip_blacklist 10m;    # Stores banned IPs
+   lua_shared_dict rate_limit_count 10m; # Stores rate limit counters
+   ```
+
+2. **Rate Limiting Configuration**
+   ```nginx
+   limit_req_zone $binary_remote_addr zone=admin_limit:10m rate=10r/s;
+   limit_req zone=admin_limit burst=5 nodelay;
+   ```
+
+3. **Logging Formats**
+   ```nginx
+   log_format main_ext escape=json '[$timestamp] $remote_addr - $remote_user '
+                      '"$request" $status $body_bytes_sent '
+                      '"$http_referer" "$http_user_agent" '
+                      'forwarded_for="$http_x_forwarded_for" '
+                      'req_time=$request_time '
+                      'upstream_time="$upstream_response_time" '
+                      'upstream_status="$upstream_status" '
+                      'host="$host" '
+                      'server_port="$server_port" '
+                      'request_id="$request_id"';
+   ```
+
+## Security Features
+
+### Rate Limiting System
+The rate limiting system uses a combination of Nginx's built-in rate limiting and Lua-based tracking:
+
+1. **First Layer**: Nginx rate limiting
+   - 10 requests per second
+   - Burst allowance of 5 requests
+   - Configured using `limit_req_zone` and `limit_req`
+
+2. **Second Layer**: Lua violation tracking
+   - Tracks rate limit violations
+   - Triggers IP ban after 3 violations
+   - Resets counters after 60 seconds
+
+### IP Banning System
+
+#### Ban Implementation
+```lua
+function ban_ip(ip)
+    local blacklist = ngx.shared.ip_blacklist
+    local ban_duration = blacklist:get("ban_duration")
+    local ban_until = ngx.time() + ban_duration
+    
+    -- Store ban information
+    blacklist:set(ip, ban_until)
+    
+    -- Update banned_ips.conf
+    update_banned_ips_file(ip, ban_until)
+end
+```
+
+#### Ban Check Implementation
+```lua
+function is_ip_banned(ip)
+    local blacklist = ngx.shared.ip_blacklist
+    local ban_until = blacklist:get(ip)
+    
+    if ban_until then
+        local current_time = ngx.time()
+        return current_time < ban_until
+    end
+    return false
+end
+```
+
+## Logging System
+
+### Log Types
+
+1. **Access Log** (`access.log`)
+   - All HTTP requests
+   - Response status
+   - Timing information
+   - Client details
+
+2. **Security Log** (`security.log`)
+   - Rate limit violations
+   - IP ban events
+   - Security-related events
+
+3. **Error Log** (`error.log`)
+   - System errors
+   - Ban/unban operations
+   - Configuration issues
+
+### Log Format
+All logs use ISO8601 timestamp format with millisecond precision:
+```
+[2024-12-04T15:37:46.450+00:00]
+```
+
+### Sample Log Entries
+
+1. **Rate Limit Violation**
+```
+[2024-12-04T15:37:46.232+00:00] Security Event [RATE_LIMIT_WARNING] - IP: 172.26.0.1, Details: Violation count: 1/3
+```
+
+2. **IP Ban Event**
+```
+[2024-12-04T15:37:46.292+00:00] Security Event [IP_BANNED] - IP: 172.26.0.1, Ban Start: 2024-12-04 15:37:46, Ban Until: 2024-12-04 15:37:56
+```
 
 ## Testing
-Run the test script to verify functionality:
+
+### Test Script
+File: `test_api_gateway.sh`
+
+The test script verifies:
+1. Rate limiting functionality
+2. IP banning after violations
+3. Ban duration accuracy
+4. Automatic unbanning
+
+### Running Tests
 ```bash
 ./test_api_gateway.sh
 ```
@@ -210,222 +250,4 @@ Logs are stored in the `logs` directory:
 - Logs are automatically rotated
 - Banned IPs are automatically removed after ban expiration
 - Configuration is reloaded without downtime
-
-## Deployment Guide
-
-### Prerequisites
-- Docker Engine (20.10.0 or higher)
-- Docker Compose (2.0.0 or higher)
-- Available ports:
-  - 80 (API Gateway)
-  - System Admin service port
-
-### Development Environment Setup
-
-1. **Get Local IP Address**
-   ```bash
-   # On macOS/Linux
-   ifconfig | grep "inet " | grep -v 127.0.0.1
-   
-   # Expected output example:
-   # inet 192.168.1.101 netmask 0xffffff00 broadcast 192.168.1.255
-   ```
-
-2. **Update Environment Variables**
-   - Copy the example environment file:
-     ```bash
-     cp .env.example .env
-     ```
-   - Update the `ADMIN_SERVICE_URL` in `.env`:
-     ```bash
-     # Replace IP_ADDRESS with your local IP (e.g., 192.168.1.101)
-     # Replace PORT with your System Admin service port (e.g., 58316)
-     ADMIN_SERVICE_URL=http://IP_ADDRESS:PORT
-     ```
-
-3. **Create Required Directories**
-   ```bash
-   mkdir -p logs
-   mkdir -p configs/conf.d
-   mkdir -p configs/lua/modules
-   ```
-
-4. **Set File Permissions**
-   ```bash
-   # Make log directory writable
-   chmod 777 logs
-   
-   # Make banned_ips.conf writable
-   chmod 666 configs/banned_ips.conf
-   ```
-
-### Production Deployment
-
-1. **Environment Configuration**
-   - Review and adjust all settings in `.env`:
-     ```bash
-     # Adjust rate limiting
-     RATE_LIMIT_REQUESTS=10
-     RATE_LIMIT_BURST=5
-     
-     # Adjust ban duration
-     BAN_DURATION_SECONDS=1800  # 30 minutes
-     
-     # Adjust logging
-     LOG_LEVEL=warn
-     LOG_BUFFER_SIZE=64k
-     LOG_FLUSH_INTERVAL=5s
-     
-     # Adjust client settings
-     CLIENT_MAX_BODY_SIZE=10M
-     CLIENT_BODY_TIMEOUT=60
-     CLIENT_HEADER_TIMEOUT=60
-     ```
-
-2. **Container Deployment**
-   ```bash
-   # Start the container
-   docker compose up -d
-   
-   # Verify deployment
-   docker compose ps
-   
-   # Check logs
-   docker compose logs -f
-   ```
-
-3. **Health Check**
-   ```bash
-   # Test the health endpoint
-   curl http://localhost/admin/health
-   
-   # Expected response:
-   {
-     "status": "ok",
-     "message": "Healthy",
-     "dbLatency": 0.964334,
-     "eventStoreLatency": 7.859875,
-     "documentDbLatency": 8.085542,
-     "dbMessage": "Database is connected",
-     "eventStoreMessage": "EventStore is connected",
-     "documentDbMessage": "DocumentDB is connected",
-     "uptime": 960.899615812,
-     "timestamp": "2024-12-13T16:20:55.174Z"
-   }
-   ```
-
-### Container Management
-
-1. **Start Container**
-   ```bash
-   docker compose up -d
-   ```
-
-2. **Stop Container**
-   ```bash
-   docker compose down
-   ```
-
-3. **View Logs**
-   ```bash
-   # View all logs
-   docker compose logs
-   
-   # Follow logs
-   docker compose logs -f
-   
-   # View specific logs
-   docker exec api_gateway tail -f /var/log/nginx/error.log
-   docker exec api_gateway tail -f /var/log/nginx/access.log
-   docker exec api_gateway tail -f /var/log/nginx/security.log
-   ```
-
-4. **Reload Configuration**
-   ```bash
-   docker exec api_gateway nginx -s reload
-   ```
-
-### Troubleshooting
-
-1. **Check Container Status**
-   ```bash
-   docker compose ps
-   docker stats api_gateway
-   ```
-
-2. **Verify Network Connectivity**
-   ```bash
-   # Test admin service connection
-   curl -v http://localhost/admin/health
-   
-   # Check container network
-   docker network inspect hadish_core-api-gateway-private
-   ```
-
-3. **Common Issues**
-
-   a. Container fails to start:
-   - Check port conflicts:
-     ```bash
-     lsof -i :80
-     ```
-   - Check log files:
-     ```bash
-     docker compose logs api_gateway
-     ```
-
-   b. Admin service unreachable:
-   - Verify service IP and port:
-     ```bash
-     # Get your local IP
-     ifconfig | grep "inet " | grep -v 127.0.0.1
-     
-     # Test direct connection to admin service
-     curl http://IP_ADDRESS:PORT/api/health
-     ```
-   - Check network connectivity:
-     ```bash
-     docker exec api_gateway ping IP_ADDRESS
-     ```
-
-   c. Rate limiting issues:
-   - Check rate limit settings in `.env`
-   - Monitor security logs:
-     ```bash
-     docker exec api_gateway tail -f /var/log/nginx/security.log
-     ```
-
-### Performance Tuning
-
-1. **Worker Processes**
-   - Adjust `worker_processes` in `nginx.conf`:
-     ```nginx
-     # Auto-detect CPU cores (recommended)
-     worker_processes auto;
-     
-     # Or set manually
-     worker_processes 4;
-     ```
-
-2. **Worker Connections**
-   - Adjust in `.env`:
-     ```bash
-     WORKER_CONNECTIONS=2048
-     ```
-
-3. **Buffer Sizes**
-   - Adjust in `.env` for high-traffic scenarios:
-     ```bash
-     CLIENT_BODY_BUFFER_SIZE=32k
-     CLIENT_HEADER_BUFFER_SIZE=2k
-     LARGE_CLIENT_HEADER_BUFFERS_NUMBER=4
-     LARGE_CLIENT_HEADER_BUFFERS_SIZE=8k
-     ```
-
-4. **Logging Performance**
-   - Adjust buffer and flush settings:
-     ```bash
-     LOG_BUFFER_SIZE=64k
-     LOG_FLUSH_INTERVAL=5s
-     ```
   
