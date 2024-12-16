@@ -2,6 +2,7 @@ local _M = {}
 
 local utils = require "utils"
 local ip_ban = require "ip_ban"
+local config = require "config"
 
 -- Initialize shared dictionaries
 local rate_limit_count = ngx.shared.rate_limit_count
@@ -9,17 +10,18 @@ local rate_limit_count = ngx.shared.rate_limit_count
 -- Function to check rate limit count and ban if needed
 function _M.check_rate_limit(ip)
     local count = rate_limit_count:get(ip) or 0
-    if count >= 3 then  -- Ban after 3 rate limit violations
+    if count >= config.rate_limit.violations_before_ban then  -- Ban after configured violations
         ip_ban.ban_ip(ip)
         rate_limit_count:delete(ip)
         return true
     else
-        rate_limit_count:incr(ip, 1, 0, 60)  -- Increment count, expire in 60 seconds
+        rate_limit_count:incr(ip, 1, 0, config.rate_limit.violation_expiry)  -- Increment count, expire after configured window
         ngx.log(ngx.WARN, string.format(
-            "[%s] Security Event [RATE_LIMIT_WARNING] - IP: %s, Details: Violation count: %d/3",
+            "[%s] Security Event [RATE_LIMIT_WARNING] - IP: %s, Details: Violation count: %d/%d",
             utils.get_iso8601_timestamp(),
             ip,
-            count + 1
+            count + 1,
+            config.rate_limit.violations_before_ban
         ))
         return false
     end
