@@ -8,7 +8,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # URL to test
-URL="http://localhost/admin/health"
+URL="http://localhost:8080/admin/health"
 
 # Function to make a request and return status code
 make_request() {
@@ -23,7 +23,7 @@ make_request_with_response() {
 
 # Function to check if IP is banned
 check_ban_status() {
-    local content=$(docker exec api_gateway cat /etc/nginx/banned_ips.conf)
+    local content=$(docker exec api-gateway cat /etc/nginx/banned_ips.conf)
     if echo "$content" | grep -q "172.26.0.1 1;"; then
         echo -e "${GREEN}✓ IP is banned (found in banned_ips.conf)${NC}"
         return 0
@@ -36,13 +36,13 @@ check_ban_status() {
 # Function to show banned_ips.conf contents
 show_banned_ips() {
     echo -e "\n${YELLOW}Current banned_ips.conf contents:${NC}"
-    docker exec api_gateway cat /etc/nginx/banned_ips.conf
+    docker exec api-gateway cat /etc/nginx/banned_ips.conf
 }
 
 # Function to show recent security logs
 show_security_logs() {
     echo -e "\n${YELLOW}Recent security log entries:${NC}"
-    docker exec api_gateway tail -n 5 /var/log/nginx/security.log
+    docker exec api-gateway tail -n 5 /var/log/nginx/security.log
 }
 
 # Function to print section header
