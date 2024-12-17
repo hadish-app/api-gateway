@@ -39,6 +39,9 @@ function _M.handle_rate_limited()
     else
         ngx.status = 429
         ngx.header.content_type = "application/json"
+        ngx.header["X-RateLimit-Limit"] = config.rate_limit.requests_per_second
+        ngx.header["X-RateLimit-Remaining"] = 0
+        ngx.header["X-RateLimit-Reset"] = math.ceil(ngx.time() + 1)  -- Reset in 1 second
         ngx.var.violation_type = "RATE_LIMIT_EXCEEDED"
         ngx.var.details = "Rate limit exceeded"
         ngx.say('{"error": "Rate limit exceeded. Further violations will result in a temporary ban."}')
