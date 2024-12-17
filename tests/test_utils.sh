@@ -5,6 +5,7 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
+BOLD='\033[1m'
 NC='\033[0m' # No Color
 
 # Load environment variables
@@ -27,6 +28,18 @@ load_env() {
         echo "Error: .env file not found"
         exit 1
     fi
+}
+
+# Format status code with color
+format_status() {
+    local code=$1
+    case $code in
+        200) echo "${GREEN}200 OK       ${NC}" ;;
+        429) echo "${YELLOW}429 LIMITED  ${NC}" ;;
+        403) echo "${RED}403 BANNED   ${NC}" ;;
+        503) echo "${RED}503 ERROR    ${NC}" ;;
+        *)   echo "${RED}$code UNKNOWN  ${NC}" ;;
+    esac
 }
 
 # Print section header
@@ -54,47 +67,10 @@ print_warning() {
     echo -e "${YELLOW}! $1${NC}"
 }
 
-# Make a request and return status code
-make_request() {
-    local url=$1
-    status_code=$(curl -s -o /dev/null -w "%{http_code}" $url)
-    echo $status_code
-}
-
-# Make a request and show response
-make_request_with_response() {
-    local url=$1
-    curl -s -w "\nStatus Code: %{http_code}\n" $url
-}
-
-# Check if IP is banned
-check_ban_status() {
-    local content=$(docker exec api-gateway cat /etc/nginx/banned_ips.conf)
-    if echo "$content" | grep -q "172.25.0.1 1;"; then
-        print_success "IP is banned (found in banned_ips.conf)"
-        return 0
-    else
-        print_error "IP is not banned"
-        return 1
-    fi
-}
-
-# Show banned_ips.conf contents
-show_banned_ips() {
-    echo -e "\n${YELLOW}Current banned_ips.conf contents:${NC}"
-    docker exec api-gateway cat /etc/nginx/banned_ips.conf
-}
-
-# Show recent security logs
-show_security_logs() {
-    echo -e "\n${YELLOW}Recent security log entries:${NC}"
-    docker exec api-gateway tail -n 5 /var/log/nginx/security.log
-}
-
 # Wait for service to be ready
 wait_for_service() {
-    local url=$1
-    local max_attempts=${2:-30}
+    local url="http://localhost:${API_GATEWAY_PORT}/health"
+    local max_attempts=30
     local attempt=1
     
     echo -n "Waiting for service to be ready"
@@ -111,23 +87,6 @@ wait_for_service() {
     return 1
 }
 
-# Format timestamp for any OS
-format_timestamp() {
-    local timestamp=$1
-    if [ -z "$timestamp" ]; then
-        echo "N/A"
-        return
-    fi
-    
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-        # On macOS, convert epoch to human-readable
-        TZ=UTC date -j -f %s "$timestamp" "+%H:%M:%S" 2>/dev/null || echo "$timestamp"
-    else
-        # On Linux
-        date -d "@$timestamp" '+%H:%M:%S' 2>/dev/null || echo "$timestamp"
-    fi
-}
-
 # Clean up function
 cleanup() {
     print_header "Cleaning up"
@@ -139,8 +98,8 @@ setup() {
     print_header "Setting up test environment"
     docker compose down > /dev/null 2>&1
     docker compose up -d > /dev/null 2>&1
-    wait_for_service "http://localhost:${API_GATEWAY_PORT}/health"
+    wait_for_service
 }
 
 # Trap cleanup function
-trap cleanup EXIT 
+trap cleanup EXIT
