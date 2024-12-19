@@ -23,7 +23,7 @@ FAILED_TESTS=0
 
 # Environment setup
 load_env() {
-    local env_file="../../.env"
+    local env_file=".env"
     if [[ ! -f "$env_file" ]]; then
         echo -e "${RED}Error: .env file not found at $env_file${NC}"
         exit 1
@@ -89,13 +89,37 @@ make_request() {
     body=$(echo "$response" | awk 'BEGIN {RS="\r\n\r\n"} NR==2')
     status_code=$(echo "$headers" | grep -E "^HTTP" | awk '{print $2}')
     
-    echo -e "STATUS:$status_code\nDURATION:$duration\nHEADERS:$headers\nBODY:$body"
+    # Format output with raw headers
+    echo -e "STATUS:$status_code\nDURATION:$duration\nHEADERS:\n$headers\nBODY:$body"
 }
 
 parse_response() {
     local response="$1"
     local field="$2"
-    echo "$response" | grep "^$field:" | cut -d':' -f2-
+    
+    case "$field" in
+        "HEADERS")
+            # Extract everything between HEADERS: and BODY:
+            echo "$response" | awk '/^HEADERS:/{p=1;next} /^BODY:/{p=0} p'
+            ;;
+        *)
+            # For other fields, return the value after the first colon
+            echo "$response" | grep "^$field:" | cut -d':' -f2-
+            ;;
+    esac
+}
+
+# Header utilities
+has_header() {
+    local headers="$1"
+    local header_name="$2"
+    echo "$headers" | grep -i "^${header_name}:" >/dev/null 2>&1
+}
+
+get_header_value() {
+    local headers="$1"
+    local header_name="$2"
+    echo "$headers" | grep -i "^${header_name}:" | cut -d':' -f2- | tr -d ' '
 }
 
 # JSON utilities
