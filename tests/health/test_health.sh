@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Import common utilities
-source ../utils/common.sh
+source tests/utils/common.sh
 
 # Test configurations
 readonly TEST_TIMEOUT=50  # milliseconds
