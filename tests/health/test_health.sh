@@ -133,13 +133,13 @@ test_status_value() {
 
 # Main test function
 test_health_check() {
-    local test_number=1
+    
     local test_title="Health Check Endpoint"
     local category="Basic HTTP Functionality"
     local description="Test the health check endpoint for proper response format and content"
     local expectation="Endpoint should return 200 OK with valid JSON containing all required metrics"
     
-    print_box "Test #${test_number}: ${test_title}"
+    print_box "Test ${test_title}"
     
     print_section "Category" && echo "  ${category}"
     print_section "Description" && echo "  ${description}"
