@@ -64,6 +64,43 @@ verify_dependencies() {
     fi
 }
 
+# Validation utilities
+validate_http_status() {
+    local status_code="$1"
+    local expected_status="$2"
+    local allow_any_valid="${3:-false}"
+    
+    if [[ "$allow_any_valid" = "true" ]]; then
+        [[ "${status_code}" =~ ^[2-5][0-9]{2}$ ]]
+        return $?
+    else
+        [[ "${status_code}" = "$expected_status" ]]
+        return $?
+    fi
+}
+
+make_request_and_validate() {
+    local method="$1"
+    local endpoint="$2"
+    local error_prefix="${3:-Request}"
+    
+    local response
+    response=$(make_request "$method" "$endpoint") || {
+        print_assertion_detail "Actual" "${error_prefix} failed"
+        print_assertion_detail "Expected" "${error_prefix} succeeds"
+        print_result "fail" "Failed to make request"
+        return 1
+    }
+    
+    echo "$response"
+    return 0
+}
+
+format_error_message() {
+    local message="$1"
+    echo -e "${RED}Error: ${message}${NC}"
+}
+
 # HTTP utilities
 make_request() {
     local method="$1"
@@ -120,6 +157,48 @@ get_header_value() {
     local headers="$1"
     local header_name="$2"
     echo "$headers" | grep -i "^${header_name}:" | cut -d':' -f2- | tr -d ' '
+}
+
+validate_cors_headers() {
+    local headers="$1"
+    local expected_methods="$2"
+    local missing_headers=()
+    local result="pass"
+    
+    # Check required headers
+    for header in "${EXPECTED_CORS_HEADERS[@]}"; do
+        if ! has_header "$headers" "$header"; then
+            missing_headers+=("$header")
+            result="fail"
+        fi
+    done
+    
+    # If all headers present, check methods
+    if [[ "$result" = "pass" && -n "$expected_methods" ]]; then
+        local cors_methods
+        cors_methods=$(get_header_value "$headers" "Access-Control-Allow-Methods")
+        
+        IFS=',' read -ra actual_methods <<< "$cors_methods"
+        IFS=',' read -ra expected_methods_arr <<< "$expected_methods"
+        
+        for method in "${expected_methods_arr[@]}"; do
+            method=$(echo "$method" | tr -d ' ')
+            if ! echo "${actual_methods[@]}" | grep -q "$method"; then
+                result="fail"
+                break
+            fi
+        done
+    fi
+    
+    if [[ "$result" = "pass" ]]; then
+        print_assertion_detail "Actual" "All CORS headers present"
+        print_assertion_detail "Expected" "All CORS headers present"
+    else
+        print_assertion_detail "Actual" "Missing headers: ${missing_headers[*]}"
+        print_assertion_detail "Expected" "All CORS headers present"
+    fi
+    
+    return $([[ "$result" = "pass" ]] && echo 0 || echo 1)
 }
 
 # JSON utilities
