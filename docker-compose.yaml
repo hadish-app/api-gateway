@@ -1,23 +1,38 @@
 name: hadish
+
 services:
   nginx:
-    image: openresty/openresty:alpine
+    image: openresty/openresty:1.21.4.1-6-alpine-fat
     container_name: api-gateway
     env_file:
       - .env
     ports:
-      - "${API_GATEWAY_PORT}:80"
+      - "${API_GATEWAY_PORT:-8080}:80"
     volumes:
       - ./configs/nginx.conf:/usr/local/openresty/nginx/conf/nginx.conf:ro
-      - ./configs/banned_ips.conf:/etc/nginx/banned_ips.conf
-      - ./logs:/var/log/nginx
+      - ./configs:/usr/local/openresty/nginx/conf:ro
       - ./modules:/usr/local/openresty/nginx/modules:ro
+      - ./logs:/var/log/nginx
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    entrypoint: |
+      /bin/sh -c "
+      # Create OPM directories
+      mkdir -p /usr/local/openresty/site/lualib &&
+
+      # Install Lua dependencies using OPM
+      opm get thibaultcha/lua-resty-jit-uuid &&
+      opm get openresty/lua-resty-limit-traffic &&
+
+      # Start OpenResty
+      /usr/local/openresty/bin/openresty -g 'daemon off;'"
     restart: unless-stopped
     networks:
       - core-api-gateway-private
-    # Security settings
-    security_opt:
-      - no-new-privileges:true
 
 networks:
   core-api-gateway-private:
