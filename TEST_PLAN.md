@@ -24,6 +24,14 @@
 - [ ] Invalid methods return appropriate error
 - [ ] Method restrictions properly enforced
 
+### 1.3 Request Headers
+
+- [ ] Required headers are present in requests
+- [ ] Custom headers are properly forwarded
+- [ ] Header size limits are enforced
+- [ ] Invalid headers are handled appropriately
+- [ ] Header injection attempts are blocked
+
 ## 2. Error Handling
 
 ### 2.1 404 Handling
@@ -55,6 +63,14 @@
 - [ ] Properly logged in security log
 - [ ] No server information leaked
 - [ ] Response time < 50ms
+
+### 2.4 Malformed Requests
+
+- [ ] Malformed JSON handling
+- [ ] Invalid content-type handling
+- [ ] Oversized payload handling
+- [ ] Invalid character encoding handling
+- [ ] Proper error messages returned
 
 ## 3. Rate Limiting
 
@@ -170,6 +186,44 @@
 - [ ] CPU usage reasonable
 - [ ] Connection handling proper
 - [ ] Log rotation working
+
+## 8. Security Testing
+
+### 8.1 Security Headers
+
+- [ ] X-Frame-Options
+- [ ] X-Content-Type-Options
+- [ ] X-XSS-Protection
+- [ ] Content-Security-Policy
+- [ ] Referrer-Policy
+
+### 8.2 API Security
+
+- [ ] CORS policy enforcement
+
+### 8.3 CORS Implementation
+- [ ] Allowed origins validation
+- [ ] Preflight requests handling
+- [ ] Allowed methods validation
+- [ ] Allowed headers validation
+- [ ] Credentials handling
+- [ ] Origin validation logic
+
+## 9. Monitoring & Metrics
+
+### 9.2 Alerting
+
+- [ ] High error rate alerts
+- [ ] Latency threshold alerts
+- [ ] Rate limit breach alerts
+- [ ] Security violation alerts
+- [ ] Resource usage alerts
+
+### 9.3 Custom Metrics
+- [ ] Backend response time metrics
+- [ ] Request size metrics
+- [ ] Response size metrics
+- [ ] Middleware timing metrics
 
 ## Test Framework Implementation
 

@@ -12,6 +12,43 @@ readonly REQUIRED_FIELDS=(
     "metrics.bans"
     "metrics.config"
     "metrics.uptime_seconds"
+    "metrics.connections"
+    "metrics.requests"
+    "metrics.workers"
+    "metrics.shared_dicts"
+    "metrics.load"
+)
+
+readonly REQUIRED_CONNECTION_FIELDS=(
+    "active"
+    "reading"
+    "writing"
+    "waiting"
+)
+
+readonly REQUIRED_REQUEST_FIELDS=(
+    "total_requests"
+    "requests_per_second"
+    "error_rate"
+    "status_codes"
+)
+
+readonly REQUIRED_MEMORY_FIELDS=(
+    "VmRSS"
+    "VmSize"
+)
+
+readonly REQUIRED_LOAD_FIELDS=(
+    "last1min"
+    "last5min"
+    "last15min"
+)
+
+readonly REQUIRED_SHARED_DICT_FIELDS=(
+    "capacity"
+    "used"
+    "free"
+    "usage_percent"
 )
 
 # Test assertions
@@ -92,6 +129,79 @@ test_required_fields() {
             local value
             value=$(get_json_field "$body" "$field")
             print_field_result "$field" "$value" "pass"
+            
+            # Check memory fields
+            if [[ "$field" == "metrics.memory" ]]; then
+                for subfield in "${REQUIRED_MEMORY_FIELDS[@]}"; do
+                    local full_field="metrics.memory.${subfield}"
+                    if [[ "$(check_json_field "$body" "$full_field")" = "true" ]]; then
+                        value=$(get_json_field "$body" "$full_field")
+                        print_field_result "$full_field" "$value" "pass"
+                    else
+                        print_field_result "$full_field" "" "fail"
+                        missing_fields+=("$full_field")
+                    fi
+                done
+            fi
+            
+            # Check connection fields
+            if [[ "$field" == "metrics.connections" ]]; then
+                for subfield in "${REQUIRED_CONNECTION_FIELDS[@]}"; do
+                    local full_field="metrics.connections.${subfield}"
+                    if [[ "$(check_json_field "$body" "$full_field")" = "true" ]]; then
+                        value=$(get_json_field "$body" "$full_field")
+                        print_field_result "$full_field" "$value" "pass"
+                    else
+                        print_field_result "$full_field" "" "fail"
+                        missing_fields+=("$full_field")
+                    fi
+                done
+            fi
+            
+            # Check request fields
+            if [[ "$field" == "metrics.requests" ]]; then
+                for subfield in "${REQUIRED_REQUEST_FIELDS[@]}"; do
+                    local full_field="metrics.requests.${subfield}"
+                    if [[ "$(check_json_field "$body" "$full_field")" = "true" ]]; then
+                        value=$(get_json_field "$body" "$full_field")
+                        print_field_result "$full_field" "$value" "pass"
+                    else
+                        print_field_result "$full_field" "" "fail"
+                        missing_fields+=("$full_field")
+                    fi
+                done
+            fi
+            
+            # Check load fields
+            if [[ "$field" == "metrics.load" ]]; then
+                for subfield in "${REQUIRED_LOAD_FIELDS[@]}"; do
+                    local full_field="metrics.load.${subfield}"
+                    if [[ "$(check_json_field "$body" "$full_field")" = "true" ]]; then
+                        value=$(get_json_field "$body" "$full_field")
+                        print_field_result "$full_field" "$value" "pass"
+                    else
+                        print_field_result "$full_field" "" "fail"
+                        missing_fields+=("$full_field")
+                    fi
+                done
+            fi
+            
+            # Check shared dict fields
+            if [[ "$field" == "metrics.shared_dicts" ]]; then
+                local dicts=("stats" "ip_blacklist" "rate_limit_store" "config")
+                for dict in "${dicts[@]}"; do
+                    for subfield in "${REQUIRED_SHARED_DICT_FIELDS[@]}"; do
+                        local full_field="metrics.shared_dicts.${dict}.${subfield}"
+                        if [[ "$(check_json_field "$body" "$full_field")" = "true" ]]; then
+                            value=$(get_json_field "$body" "$full_field")
+                            print_field_result "$full_field" "$value" "pass"
+                        else
+                            print_field_result "$full_field" "" "fail"
+                            missing_fields+=("$full_field")
+                        fi
+                    done
+                done
+            fi
         else
             print_field_result "$field" "" "fail"
             missing_fields+=("$field")
