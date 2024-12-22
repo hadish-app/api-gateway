@@ -8,6 +8,10 @@ local timer_every = ngx.timer.every
 local log = ngx.log
 local INFO = ngx.INFO
 local ERR = ngx.ERR
+local DEBUG = ngx.DEBUG
+
+-- Import modules
+local config = require "core.config"
 
 -- Configuration
 local CLEANUP_INTERVAL = 10  -- seconds
@@ -18,6 +22,7 @@ local SHARED_DICTS = {
         "config_cache",  -- Configuration cache
         "rate_limit",    -- Rate limiting
         "ip_blacklist", -- IP blocking list
+        "worker_events" -- Worker events
     },
     cleanup = {
         "stats",
@@ -25,31 +30,65 @@ local SHARED_DICTS = {
     }
 }
 
+-- Verify shared dictionaries
+local function verify_shared_dicts()
+    log(INFO, "Starting shared dictionary verification...")
+    
+    -- List all available shared dictionaries
+    local available_dicts = {}
+    for dict_name, _ in pairs(shared) do
+        available_dicts[dict_name] = true
+        log(DEBUG, "Found shared dictionary: " .. dict_name)
+    end
+    
+    for _, dict_name in ipairs(SHARED_DICTS.required) do
+        if not shared[dict_name] then
+            log(ERR, "Required shared dictionary not found: " .. dict_name)
+            log(INFO, "Available dictionaries: " .. table.concat(available_dicts, ", "))
+            return false
+        end
+        log(INFO, "Verified shared dictionary: " .. dict_name)
+    end
+    return true
+end
+
 -- Bootstrap: Load required core libraries
 local function bootstrap()
+    log(INFO, "Starting bootstrap process...")
+    
     -- Core dependencies
     local ok, err = pcall(function()
+        log(INFO, "Loading resty.core...")
         require "resty.core"
+        log(INFO, "Loading resty.jit-uuid...")
         require "resty.jit-uuid"
     end)
     
     if not ok then
+        log(ERR, "Failed to load core libraries: " .. err)
         return nil, "Failed to load core libraries: " .. err
     end
+    log(INFO, "Core libraries loaded successfully")
+    
+    -- Verify shared dictionaries
+    if not verify_shared_dicts() then
+        return nil, "Failed to verify shared dictionaries"
+    end
+    
+    -- Initialize configuration
+    log(INFO, "Initializing configuration...")
+    ok, err = config.init()
+    if not ok then
+        log(ERR, "Configuration initialization failed: " .. err)
+        return nil, "Failed to initialize configuration: " .. err
+    end
+    log(INFO, "Configuration initialized successfully")
     
     return true
 end
 
 -- Initialize shared states
 local function init_shared_states()
-    -- Verify all required dictionaries exist
-    for _, dict_name in ipairs(SHARED_DICTS.required) do
-        if not shared[dict_name] then
-            log(ERR, "Required shared dictionary not found: " .. dict_name)
-            return nil, "Required shared dictionary not found: " .. dict_name
-        end
-    end
-
     -- Initialize basic states
     local stats = shared.stats
     if not stats then
