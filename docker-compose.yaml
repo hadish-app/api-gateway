@@ -7,10 +7,12 @@ services:
     env_file:
       - .env
     ports:
-      - "${API_GATEWAY_PORT}:80"
+      - "${SERVER_PORT}:80"
     volumes:
       - ./configs:/usr/local/openresty/nginx/conf:ro
       - ./modules:/usr/local/openresty/nginx/modules:ro
+      - ./tests:/usr/local/openresty/nginx/tests:ro
+      - ./logs:/usr/local/openresty/nginx/logs
 
     command: >
       sh -c "opm get thibaultcha/lua-resty-jit-uuid &&
