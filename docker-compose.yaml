@@ -15,10 +15,29 @@ services:
       - ./logs:/usr/local/openresty/nginx/logs
 
     command: >
-      sh -c "opm get thibaultcha/lua-resty-jit-uuid &&
+      sh -c "
+             opm get thibaultcha/lua-resty-jit-uuid &&
              /usr/local/openresty/bin/openresty -g 'daemon off;'"
 
     restart: unless-stopped
+    networks:
+      - api-gateway-network
+
+  test:
+    image: openresty/openresty:1.21.4.1-6-alpine-fat
+    container_name: api-gateway-test
+    volumes:
+      - ./configs:/usr/local/openresty/nginx/conf:ro
+      - ./modules:/usr/local/openresty/nginx/modules:ro
+      - ./tests:/usr/local/openresty/nginx/tests:ro
+      - ./logs:/usr/local/openresty/nginx/logs
+    working_dir: /usr/local/openresty/nginx
+    command: >
+      sh -c "
+             apk add --no-cache luarocks &&
+             luarocks install busted &&
+             luarocks install luassert &&
+             ./tests/scripts/run_tests.sh"
     networks:
       - api-gateway-network
 
