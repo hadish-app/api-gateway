@@ -1,16 +1,18 @@
 local helpers = require "tests.core.test_helpers"
 
 -- Example module we might be testing
-local function create_example_module()
+local function create_example_module(ngx)
     local _M = {}
     
     function _M.process_request(method, uri, headers)
         -- Log incoming request details for debugging
-        ngx.log.info("Processing request:", {
-            method = method,
-            uri = uri,
-            headers = headers
-        })
+        if ngx and ngx.log then
+            ngx.log.info("Processing request: ", require("cjson").encode({
+                method = method,
+                uri = uri,
+                headers = headers
+            }))
+        end
 
         -- Basic validation
         if not method or not uri then
@@ -34,12 +36,12 @@ describe("Example Module", function()
     
     setup(function()
         -- Run once before all tests
-        example_module = create_example_module()
+        ngx = helpers.ngx
+        example_module = create_example_module(ngx)
     end)
     
     before_each(function()
         -- Run before each test
-        ngx = helpers.ngx
         helpers.reset_ngx()
     end)
     
