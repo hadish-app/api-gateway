@@ -31,3 +31,6 @@ docker-compose.override.yml
 tmp/
 temp/
 configs/banned_ips.conf
+
+# Test cache
+tests/cache/
