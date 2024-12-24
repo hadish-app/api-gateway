@@ -103,19 +103,30 @@ describe("Example Module", function()
         end)
         
         it("should handle request headers properly", function()
+            local headers = { 
+                ["content-type"] = "application/json",
+                authorization = "Bearer token123"
+            }
+            
+            -- Log headers before request
+            ngx.log.info("Test starting - Headers to be set: " .. require("cjson").encode(headers))
+            
             helpers.mock_request(
                 "POST",
                 "/api/data",
-                { 
-                    ["content-type"] = "application/json",
-                    authorization = "Bearer token123"
-                },
+                headers,
                 '{"key": "value"}'
             )
             
-            local headers = ngx.req.get_headers()
-            assert.equals("application/json", headers["content-type"])
-            assert.equals("Bearer token123", headers["authorization"])
+            -- Get and log actual headers
+            local actual_headers = ngx.req.get_headers()
+            ngx.log.info("Actual headers after mock: " .. require("cjson").encode(actual_headers))
+            
+            assert.equals("application/json", actual_headers["content-type"])
+            assert.equals("Bearer token123", actual_headers["authorization"])
+            
+            -- Log test completion
+            ngx.log.info("Test completed successfully")
         end)
     end)
 end) 

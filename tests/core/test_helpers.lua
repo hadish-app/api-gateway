@@ -1,6 +1,9 @@
 -- test_helpers.lua
 local _M = {}
 
+-- Store captured logs
+_M.logs = {}
+
 -- Mock the ngx variable with more production-like behavior
 _M.ngx = {
     var = {},
@@ -17,10 +20,30 @@ _M.ngx = {
         capture = function() return { status = 200 } end
     },
     log = {
-        info = function(...) end,
-        error = function(...) end,
-        warn = function(...) end,
-        debug = function(...) end
+        info = function(...)
+            local args = {...}
+            local msg = table.concat(args, " ")
+            print("[INFO] " .. msg)  -- Print to stdout for immediate visibility
+            table.insert(_M.logs, { level = "info", message = msg })
+        end,
+        error = function(...)
+            local args = {...}
+            local msg = table.concat(args, " ")
+            print("[ERROR] " .. msg)
+            table.insert(_M.logs, { level = "error", message = msg })
+        end,
+        warn = function(...)
+            local args = {...}
+            local msg = table.concat(args, " ")
+            print("[WARN] " .. msg)
+            table.insert(_M.logs, { level = "warn", message = msg })
+        end,
+        debug = function(...)
+            local args = {...}
+            local msg = table.concat(args, " ")
+            print("[DEBUG] " .. msg)
+            table.insert(_M.logs, { level = "debug", message = msg })
+        end
     },
     say = function(...) end,
     exit = function(status) return status end,
@@ -41,6 +64,7 @@ function _M.reset_ngx()
     _M.ngx.ctx = {}
     _M.ngx.header = {}
     _M.ngx.shared = {}
+    _M.logs = {}  -- Clear logs between tests
 end
 
 -- Helper to mock HTTP responses
