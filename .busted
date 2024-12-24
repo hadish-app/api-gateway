@@ -1,0 +1,20 @@
+return {
+   default = {
+      verbose = true,
+      output = "htest",
+      pattern = ".lua$",
+      ROOT = {"tests/unit/"}
+   },
+   unit = {
+      verbose = true,
+      output = "htest",
+      pattern = ".lua$",
+      ROOT = {"tests/unit/"}
+   },
+   integration = {
+      verbose = true,
+      output = "htest",
+      pattern = ".lua$",
+      ROOT = {"tests/integration/"}
+   }
+} 
