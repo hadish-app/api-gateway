@@ -10,18 +10,18 @@ This document outlines the phased development approach for implementing the Hadi
 
 ## Phase 1: Core Infrastructure Setup
 
-### 1.1 Lua Environment Setup
-- [ ] Configure Lua module paths (`configs/lua/paths.conf`)
-- [ ] Set up shared dictionaries (`configs/lua/dict.conf`)
-- [ ] Implement Lua initialization (`configs/lua/init.conf`)
+### 1.1 Lua Environment Setup (Completed)
+- [x] Configure Lua module paths (`configs/lua/paths.conf`)
+- [x] Set up shared dictionaries (`configs/lua/dict.conf`)
+- [x] Implement Lua initialization (`configs/lua/init.conf`)
 
-### 1.2 Core Module Implementation
-- [ ] Core initialization (`modules/core/init.lua`)
+### 1.2 Core Module Implementation (In Progress)
+- [x] Core initialization (`modules/core/init.lua`)
   - Module loading system
   - Global state management
   - Startup sequence
 
-- [ ] Configuration management (`modules/core/config.lua`)
+- [x] Configuration management (`modules/core/config.lua`)
   - Environment variable handling
   - Configuration validation
   - Dynamic updates support
@@ -36,15 +36,19 @@ This document outlines the phased development approach for implementing the Hadi
   - Middleware registration
   - Execution order control
 
-### 1.3 Basic Utilities
-- [ ] Environment utilities (`modules/utils/env.lua`)
+### 1.3 Basic Utilities (In Progress)
+- [x] Environment utilities (`modules/utils/env.lua`)
 - [ ] Validation helpers (`modules/utils/validation.lua`)
 - [ ] Common functions (`modules/utils/common.lua`)
 
 ## Phase 2: Essential Features
 
-### 2.1 Logging System
-- [ ] Configure logging formats (`configs/core/logging.conf`)
+### 2.1 Logging System (Completed)
+- [x] Configure logging formats
+  - Split into separate configurations:
+    - `configs/core/access_log.conf` - HTTP access logging
+    - `configs/core/error_log.conf` - Error level logging
+    - `configs/core/debug_log.conf` - Debug and info level logging
 - [ ] Implement logging middleware (`modules/middleware/logging/`)
   - Request/response logging
   - Error logging
@@ -74,11 +78,12 @@ This document outlines the phased development approach for implementing the Hadi
   - Implementation (`modules/middleware/security/ipban.lua`)
   - Ban list management
 
-### 3.2 Monitoring and Metrics
+### 3.2 Monitoring and Metrics (In Progress)
 - [ ] Metrics collection (`modules/middleware/metrics/`)
-  - Performance metrics
-  - Request statistics
-  - Error tracking
+  - [x] Basic structure setup
+  - [ ] Performance metrics
+  - [ ] Request statistics
+  - [ ] Error tracking
 
 - [ ] Debug endpoints (`configs/locations/debug.conf`)
   - Status information
@@ -90,7 +95,7 @@ This document outlines the phased development approach for implementing the Hadi
 - [ ] Implement caching strategies
 - [ ] Schedule-based operations
 
-## Phase 4: Testing Infrastructure
+## Phase 4: Testing Infrastructure (In Progress)
 
 ### 4.1 Unit Testing
 - [ ] Core module tests
@@ -113,7 +118,10 @@ This document outlines the phased development approach for implementing the Hadi
 - [ ] API documentation
 - [ ] Configuration guide
 - [ ] Deployment guide
-- [ ] Development guide
+- [x] Development guide
+  - [x] Project structure documentation
+  - [x] Development plan
+  - [ ] Contributing guidelines
 
 ### 5.2 Performance Optimization
 - [ ] Load testing
@@ -136,9 +144,16 @@ This document outlines the phased development approach for implementing the Hadi
 ## Progress Tracking
 
 - [x] Phase 0: Basic Infrastructure Setup
-- [ ] Phase 1: Core Infrastructure Setup
-- [ ] Phase 2: Essential Features
-- [ ] Phase 3: Advanced Features
-- [ ] Phase 4: Testing Infrastructure
-- [ ] Phase 5: Documentation and Optimization
+- [ ] Phase 1: Core Infrastructure Setup (70% complete)
+  - [x] Lua Environment Setup
+  - [x] Core Configuration
+  - [ ] Error Handling
+  - [ ] Middleware Chain
+- [ ] Phase 2: Essential Features (30% complete)
+  - [x] Logging System
+  - [ ] Basic Security
+  - [ ] Service Integration
+- [ ] Phase 3: Advanced Features (10% started)
+- [ ] Phase 4: Testing Infrastructure (20% started)
+- [ ] Phase 5: Documentation and Optimization (15% started)
   
