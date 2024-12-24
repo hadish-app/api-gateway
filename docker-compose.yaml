@@ -24,20 +24,15 @@ services:
       - api-gateway-network
 
   test:
-    image: openresty/openresty:1.21.4.1-6-alpine-fat
+    build:
+      context: .
+      dockerfile: tests/Dockerfile
     container_name: api-gateway-test
     volumes:
       - ./configs:/usr/local/openresty/nginx/conf:ro
       - ./modules:/usr/local/openresty/nginx/modules:ro
       - ./tests:/usr/local/openresty/nginx/tests:ro
       - ./logs:/usr/local/openresty/nginx/logs
-    working_dir: /usr/local/openresty/nginx
-    command: >
-      sh -c "
-             apk add --no-cache luarocks &&
-             luarocks install busted &&
-             luarocks install luassert &&
-             ./tests/scripts/run_tests.sh"
     networks:
       - api-gateway-network
 
