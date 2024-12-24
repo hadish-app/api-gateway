@@ -1,14 +1,15 @@
 FROM openresty/openresty:1.21.4.1-6-alpine-fat as builder
 
 # Install build dependencies
-RUN apk add --no-cache luarocks
+RUN apk add --no-cache luarocks git
 
 # Install test dependencies
 RUN luarocks install busted && \
     luarocks install luassert && \
     luarocks install lua-cjson && \
     luarocks install luacov && \
-    luarocks install luacov-console
+    luarocks install luacov-console && \
+    luarocks install --server=https://luarocks.org/dev busted-htest
 
 # Create a smaller final image
 FROM openresty/openresty:1.21.4.1-6-alpine-fat

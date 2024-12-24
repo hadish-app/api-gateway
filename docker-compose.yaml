@@ -33,6 +33,7 @@ services:
       - ./modules:/usr/local/openresty/nginx/modules:ro
       - ./tests:/usr/local/openresty/nginx/tests:ro
       - ./logs:/usr/local/openresty/nginx/logs
+      - ./.busted:/usr/local/openresty/nginx/.busted:ro
     networks:
       - api-gateway-network
 
