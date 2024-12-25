@@ -23,20 +23,6 @@ services:
     networks:
       - api-gateway-network
 
-  test:
-    build:
-      context: .
-      dockerfile: tests/Dockerfile
-    container_name: api-gateway-test
-    volumes:
-      - ./configs:/usr/local/openresty/nginx/conf:ro
-      - ./modules:/usr/local/openresty/nginx/modules:ro
-      - ./tests:/usr/local/openresty/nginx/tests:ro
-      - ./logs:/usr/local/openresty/nginx/logs
-      - ./.busted:/usr/local/openresty/nginx/.busted:ro
-    networks:
-      - api-gateway-network
-
 networks:
   api-gateway-network:
     driver: bridge
