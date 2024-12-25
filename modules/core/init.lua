@@ -126,8 +126,8 @@ function _M.start_worker()
     log(INFO, "Cleanup interval: " .. cleanup_interval)
 
     if not cleanup_interval or cleanup_interval < 1 then
-        cleanup_interval = 10  -- Default fallback
-        log(INFO, "Using default cleanup interval: " .. cleanup_interval)
+        log(ERR, "Invalid cleanup_interval configuration. Must be >= 1")
+        return nil, "Invalid cleanup_interval configuration. Must be >= 1"
     end
 
     -- Set up state cleanup timer
