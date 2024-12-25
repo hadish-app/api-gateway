@@ -11,16 +11,9 @@ local WARN = ngx.WARN
 -- Import dependencies
 local cjson = require "cjson"
 
--- Import environment utilities
+-- Import utilities
 local env = require "utils.env"
-
--- Convert value to appropriate type
-local function convert_value(str)
-    if str == "true" then return true
-    elseif str == "false" then return false
-    elseif tonumber(str) then return tonumber(str)
-    else return str end
-end
+local type_conversion = require "utils.type_conversion"
 
 -- Initialize configuration
 -- This function loads configuration from environment variables and stores it in a shared dictionary
@@ -103,7 +96,7 @@ function _M.get(section, key)
         return nil, "key not found: " .. key
     end
     
-    return convert_value(values[key])
+    return type_conversion.convert_value(values[key])
 end
 
 -- Get entire configuration section
@@ -122,7 +115,7 @@ function _M.get_section(section)
     local values = ngx.decode_args(section_data)
     local result = {}
     for k, v in pairs(values) do
-        result[k] = convert_value(v)
+        result[k] = type_conversion.convert_value(v)
     end
     return result
 end
