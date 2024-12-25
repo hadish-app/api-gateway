@@ -41,6 +41,7 @@ local function verify_shared_dicts()
         log(DEBUG, "Found shared dictionary: " .. dict_name)
     end
     
+    
     for _, dict_name in ipairs(SHARED_DICTS.required) do
         if not shared[dict_name] then
             log(ERR, "Required shared dictionary not found: " .. dict_name)
@@ -52,40 +53,6 @@ local function verify_shared_dicts()
     return true
 end
 
--- Bootstrap: Load required core libraries
-local function bootstrap()
-    log(INFO, "Starting bootstrap process...")
-    
-    -- Core dependencies
-    local ok, err = pcall(function()
-        log(INFO, "Loading resty.core...")
-        require "resty.core"
-        log(INFO, "Loading resty.jit-uuid...")
-        require "resty.jit-uuid"
-    end)
-    
-    if not ok then
-        log(ERR, "Failed to load core libraries: " .. err)
-        return nil, "Failed to load core libraries: " .. err
-    end
-    log(INFO, "Core libraries loaded successfully")
-    
-    -- Verify shared dictionaries
-    if not verify_shared_dicts() then
-        return nil, "Failed to verify shared dictionaries"
-    end
-    
-    -- Initialize configuration
-    log(INFO, "Initializing configuration...")
-    ok, err = config.init()
-    if not ok then
-        log(ERR, "Configuration initialization failed: " .. err)
-        return nil, "Failed to initialize configuration: " .. err
-    end
-    log(INFO, "Configuration initialized successfully")
-    
-    return true
-end
 
 -- Initialize shared states
 local function init_shared_states()
@@ -113,16 +80,36 @@ local function init_shared_states()
     return true
 end
 
+-- Bootstrap: Load required core libraries
+local function bootstrap()
+    log(INFO, "Starting bootstrap process...")
+    
+    -- Verify shared dictionaries
+    if not verify_shared_dicts() then
+        return nil, "Failed to verify shared dictionaries"
+    end
+
+    if not init_shared_states() then
+        return nil, "Failed to initialize shared states"
+    end
+    
+    -- Initialize configuration
+    log(INFO, "Initializing configuration...")
+    ok, err = config.init()
+    if not ok then
+        log(ERR, "Configuration initialization failed: " .. err)
+        return nil, "Failed to initialize configuration: " .. err
+    end
+    log(INFO, "Configuration initialized successfully")
+    
+    return true
+end
+
+
 -- Application startup
 function _M.start()
     -- Step 1: Bootstrap the application
     local ok, err = bootstrap()
-    if not ok then
-        return nil, err
-    end
-
-    -- Step 2: Initialize shared states
-    ok, err = init_shared_states()
     if not ok then
         return nil, err
     end
