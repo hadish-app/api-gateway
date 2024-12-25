@@ -9,12 +9,12 @@ local log = ngx.log
 local INFO = ngx.INFO
 local ERR = ngx.ERR
 local DEBUG = ngx.DEBUG
+local WARN = ngx.WARN
 
 -- Import modules
 local config = require "core.config"
 
 -- Configuration
-local CLEANUP_INTERVAL = 10  -- seconds
 local SHARED_DICTS = {
     required = {
         "stats",         -- Runtime statistics
@@ -120,8 +120,18 @@ end
 
 -- Worker process initialization
 function _M.start_worker()
+    -- Get cleanup interval from config
+    local cleanup_interval = config.get("system", "cleanup_interval")
+
+    log(INFO, "Cleanup interval: " .. cleanup_interval)
+
+    if not cleanup_interval or cleanup_interval < 1 then
+        cleanup_interval = 10  -- Default fallback
+        log(INFO, "Using default cleanup interval: " .. cleanup_interval)
+    end
+
     -- Set up state cleanup timer
-    local ok, err = timer_every(CLEANUP_INTERVAL, function(premature)
+    local ok, err = timer_every(cleanup_interval, function(premature)
         if premature then return end
         
         -- Cleanup expired entries in all shared states
@@ -138,7 +148,7 @@ function _M.start_worker()
         return nil, "Failed to create cleanup timer: " .. err
     end
 
-    log(INFO, "Worker initialized successfully")
+    log(INFO, "Worker initialized successfully with cleanup interval: " .. cleanup_interval)
     return true
 end
 
