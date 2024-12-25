@@ -8,21 +8,23 @@ This directory contains the test suite for the API Gateway. The tests are organi
 /tests
   /modules           # Tests for core modules
     /core            # Core module tests
-      config_test.lua
+      config_init_test.lua
+    /utils           # Utils module tests (env, log, etc.)  
+      env_test.lua   # Test for env.lua
   /core             # Test utilities and helpers
     test_utils.lua   # Core test utilities
-    test_helpers.lua # Helper functions for tests
 ```
 
 ## Test Types
 
 ### Module Tests
 
-Located in `/tests/modules/`, these tests verify the functionality of individual modules. Each test file corresponds to a module in the main codebase.
+Located in `/tests/modules/`, these tests verify the functionality of individual modules. Each test file corresponds to a module or a module function in the main codebase.
 
 Example:
 
 - `/modules/core/config.lua` → `/tests/modules/core/config_test.lua`
+- `/modules/core/config.lua` init() → `/tests/modules/core/config_init_test.lua`
 
 ## Running Tests
 
@@ -51,14 +53,6 @@ Provides core testing functionality:
 - Assertion functions
 - Test result reporting
 
-### test_helpers.lua
-
-Contains helper functions for:
-
-- Setting up test environments
-- Mock data generation
-- Common test operations
-
 ## Writing Tests
 
 ### File Naming Convention
@@ -66,6 +60,7 @@ Contains helper functions for:
 - Use `_test.lua` suffix for all test files
 - Match the module structure in the test directory
 - Example: `config_test.lua` for testing `config.lua`
+- Example: `config_init_test.lua` for testing the init() function of `config.lua`
 
 ### Test Structure
 
