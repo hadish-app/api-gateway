@@ -50,8 +50,8 @@ local function setup_ngx_mock()
     }
 end
 
--- Helper function to validate health data structure
-local function validate_health_data(data)
+-- Helper function to validate basic health data structure
+local function validate_basic_health(data)
     -- Basic checks
     test_utils.assert_equals("table", type(data), "Health data should be a table")
     test_utils.assert_equals("string", type(data.status), "Status should be a string")
@@ -62,9 +62,32 @@ local function validate_health_data(data)
     
     -- System metrics checks
     test_utils.assert_equals("table", type(data.system), "System metrics should be a table")
-    test_utils.assert_equals("table", type(data.system.worker), "Worker info should be a table")
     test_utils.assert_equals("table", type(data.system.memory), "Memory info should be a table")
+    test_utils.assert_equals("number", type(data.system.memory.lua_used), "Lua memory usage should be a number")
     test_utils.assert_equals("table", type(data.system.connections), "Connection info should be a table")
+    test_utils.assert_equals("string", type(data.system.connections.active), "Active connections should exist")
+    test_utils.assert_equals("string", type(data.system.connections.writing), "Writing connections should exist")
+    
+    -- Performance checks
+    test_utils.assert_equals("table", type(data.performance), "Performance metrics should be a table")
+    test_utils.assert_equals("number", type(data.performance.request_time), "Request time should be a number")
+end
+
+-- Helper function to validate detailed health data structure
+local function validate_detailed_health(data)
+    -- First run basic validations
+    validate_basic_health(data)
+    
+    -- Additional system checks
+    test_utils.assert_equals("string", type(data.system.hostname), "Hostname should exist")
+    test_utils.assert_equals("table", type(data.system.worker), "Worker info should be a table")
+    test_utils.assert_equals("number", type(data.system.worker.id), "Worker ID should be a number")
+    test_utils.assert_equals("number", type(data.system.worker.count), "Worker count should be a number")
+    test_utils.assert_equals("number", type(data.system.worker.pid), "Worker PID should be a number")
+    
+    -- Detailed connection checks
+    test_utils.assert_equals("string", type(data.system.connections.reading), "Reading connections should exist")
+    test_utils.assert_equals("string", type(data.system.connections.waiting), "Waiting connections should exist")
     
     -- Shared dictionaries checks
     test_utils.assert_equals("table", type(data.system.shared_dicts), "Shared dictionaries should be a table")
@@ -81,24 +104,32 @@ local function validate_health_data(data)
         end
     end
     
-    -- Performance metrics checks
-    test_utils.assert_equals("table", type(data.performance), "Performance metrics should be a table")
-    
-    -- Request info checks
-    test_utils.assert_equals("table", type(data.request), "Request info should be a table")
-    
-    -- Print the data for inspection
-    ngx.say("Health data:")
-    ngx.say(cjson.encode(data))
+    -- Detailed performance checks
+    test_utils.assert_equals("table", type(data.performance.request), "Request info should be a table")
+    test_utils.assert_equals("string", type(data.performance.request.remote_addr), "Remote address should exist")
+    test_utils.assert_equals("string", type(data.performance.request.request_method), "Request method should exist")
+    test_utils.assert_equals("string", type(data.performance.request.request_uri), "Request URI should exist")
 end
 
 _M.tests = {
     {
-        name = "Test: Health data generation",
+        name = "Test: Basic health check",
         func = function()
             setup_ngx_mock()
-            local data = health.get_health_data()
-            validate_health_data(data)
+            local data = health.get_basic_health()
+            validate_basic_health(data)
+            ngx.say("Basic health data:")
+            ngx.say(cjson.encode(data))
+        end
+    },
+    {
+        name = "Test: Detailed health check",
+        func = function()
+            setup_ngx_mock()
+            local data = health.get_detailed_health()
+            validate_detailed_health(data)
+            ngx.say("Detailed health data:")
+            ngx.say(cjson.encode(data))
         end
     }
 }

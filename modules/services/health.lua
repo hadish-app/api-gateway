@@ -2,8 +2,21 @@ local cjson = require "cjson"
 
 local _M = {}
 
--- Get system metrics
-local function get_system_metrics()
+-- Get basic system metrics
+local function get_basic_metrics()
+    return {
+        memory = {
+            lua_used = collectgarbage("count") * 1024  -- Lua memory in bytes
+        },
+        connections = {
+            active = ngx.var.connections_active,
+            writing = ngx.var.connections_writing
+        }
+    }
+end
+
+-- Get detailed system metrics
+local function get_detailed_metrics()
     -- Get memory info using lua-resty-core
     local memory_stats = {
         lua_used = collectgarbage("count") * 1024,  -- Lua memory in bytes
@@ -31,41 +44,30 @@ local function get_system_metrics()
     return {
         memory = memory_stats,
         connections = connections,
-        shared_dicts = shared_dicts
+        shared_dicts = shared_dicts,
+        hostname = ngx.var.hostname,
+        worker = {
+            id = ngx.worker.id(),
+            count = ngx.worker.count(),
+            pid = memory_stats.worker_pid
+        }
     }
 end
 
--- Get performance metrics
-local function get_performance_metrics()
+-- Get basic performance metrics
+local function get_basic_performance()
+    return {
+        request_time = ngx.now() - ngx.req.start_time()
+    }
+end
+
+-- Get detailed performance metrics
+local function get_detailed_performance()
     return {
         request_time = ngx.now() - ngx.req.start_time(),
         upstream_response_time = ngx.var.upstream_response_time,
         upstream_connect_time = ngx.var.upstream_connect_time,
-        upstream_status = ngx.var.upstream_status
-    }
-end
-
--- Generate health check data
-function _M.get_health_data()
-    local system_metrics = get_system_metrics()
-    local performance = get_performance_metrics()
-    
-    return {
-        status = "healthy",
-        timestamp = ngx.now() * 1000, -- timestamp in milliseconds
-        version = "1.0.0",
-        system = {
-            hostname = ngx.var.hostname,
-            worker = {
-                id = ngx.worker.id(),
-                count = ngx.worker.count(),
-                pid = system_metrics.memory.worker_pid
-            },
-            memory = system_metrics.memory,
-            connections = system_metrics.connections,
-            shared_dicts = system_metrics.shared_dicts
-        },
-        performance = performance,
+        upstream_status = ngx.var.upstream_status,
         request = {
             remote_addr = ngx.var.remote_addr,
             request_method = ngx.var.request_method,
@@ -77,12 +79,54 @@ function _M.get_health_data()
     }
 end
 
--- Handle HTTP response
+-- Generate basic health check data
+function _M.get_basic_health()
+    local system = get_basic_metrics()
+    local performance = get_basic_performance()
+    
+    return {
+        status = "healthy",
+        timestamp = ngx.now() * 1000,
+        version = "1.0.0",
+        system = system,
+        performance = performance
+    }
+end
+
+-- Generate detailed health check data
+function _M.get_detailed_health()
+    local system = get_detailed_metrics()
+    local performance = get_detailed_performance()
+    
+    return {
+        status = "healthy",
+        timestamp = ngx.now() * 1000,
+        version = "1.0.0",
+        system = system,
+        performance = performance
+    }
+end
+
+-- Handle basic health check response
 function _M.check()
-    local health_data, err = _M.get_health_data()
+    local health_data, err = _M.get_basic_health()
     if not health_data then
         ngx.status = ngx.HTTP_INTERNAL_SERVER_ERROR
         ngx.say(cjson.encode({ status = "error", error = err or "Failed to get health data" }))
+        return ngx.exit(ngx.HTTP_INTERNAL_SERVER_ERROR)
+    end
+    
+    ngx.header["Content-Type"] = "application/json"
+    ngx.say(cjson.encode(health_data))
+    return ngx.exit(ngx.HTTP_OK)
+end
+
+-- Handle detailed health check response
+function _M.check_detailed()
+    local health_data, err = _M.get_detailed_health()
+    if not health_data then
+        ngx.status = ngx.HTTP_INTERNAL_SERVER_ERROR
+        ngx.say(cjson.encode({ status = "error", error = err or "Failed to get detailed health data" }))
         return ngx.exit(ngx.HTTP_INTERNAL_SERVER_ERROR)
     end
     
