@@ -82,7 +82,7 @@ end
 -- Define test cases
 _M.tests = {
     {
-        name = "Environment loading",
+        name = "Test: Environment loading",
         func = function()
             local config = env.load_all()
             test_utils.assert_equals("table", type(config), "Configuration loaded successfully")
@@ -93,7 +93,7 @@ _M.tests = {
         end
     },
     {
-        name = "Verify environment variables match loaded configuration",
+        name = "Test: Verify environment variables match loaded configuration",
         func = function()
             -- Get environment variables
             local env_values = get_env_vars()

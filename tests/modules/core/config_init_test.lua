@@ -7,7 +7,7 @@ local _M = {}
 -- Define test case
 _M.tests = {
     {
-        name = "Test 1: Configuration initialization",
+        name = "Test: Configuration initialization",
         func = function()
             local ok, err, config_data = config.init()
             test_utils.assert_equals(true, ok, "Config initialization")
