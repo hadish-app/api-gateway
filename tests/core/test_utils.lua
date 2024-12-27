@@ -14,6 +14,16 @@ function _M.assert_equals(expected, actual, message)
     end
 end
 
+function _M.assert_not_nil(value, message)
+    if value ~= nil then
+        ngx.say("\27[32m✓\27[0m " .. message)
+        return true
+    else
+        ngx.say("\27[31m✗\27[0m " .. message)
+        return false
+    end
+end
+
 -- Helper to run a test suite
 function _M.run_suite(name, tests)
     ngx.say("\nRunning " .. name .. " tests...")

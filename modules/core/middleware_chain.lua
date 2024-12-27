@@ -1,3 +1,4 @@
+local logger = require "modules.utils.logger"
 local _M = {}
 
 -- Tables to store middleware
@@ -36,7 +37,7 @@ local function validate_middleware(handler, name)
     handler.state = handler.state or STATES.DISABLED
     handler.routes = handler.routes or {}  -- Empty means global
     
-    ngx.log(ngx.DEBUG, "Validated middleware: ", name, ", state: ", handler.state)
+    logger.debug("Validated middleware:", name, ", state:", handler.state)
 end
 
 -- Add middleware
@@ -49,12 +50,12 @@ function _M.use(handler, name)
         for _, route in ipairs(handler.routes) do
             route_middleware[route] = route_middleware[route] or {}
             table.insert(route_middleware[route], handler)
-            ngx.log(ngx.DEBUG, "Added route middleware: ", name, " for route: ", route)
+            logger.debug("Added route middleware:", name, "for route:", route)
         end
     else
         -- Store globally
         table.insert(global_middleware, handler)
-        ngx.log(ngx.DEBUG, "Added global middleware: ", name)
+        logger.debug("Added global middleware:", name)
     end
     
     -- Sort middleware by priority (lower numbers run first)
@@ -74,7 +75,7 @@ function _M.remove(name)
     for i, m in ipairs(global_middleware) do
         if m.name == name then
             table.remove(global_middleware, i)
-            ngx.log(ngx.DEBUG, "Removed global middleware: ", name)
+            logger.debug("Removed global middleware:", name)
             break
         end
     end
@@ -84,7 +85,7 @@ function _M.remove(name)
         for i, m in ipairs(handlers) do
             if m.name == name then
                 table.remove(handlers, i)
-                ngx.log(ngx.DEBUG, "Removed route middleware: ", name, " from route: ", route)
+                logger.debug("Removed route middleware:", name, "from route:", route)
                 break
             end
         end
@@ -101,7 +102,7 @@ function _M.set_state(name, state)
         for _, m in ipairs(middleware_list) do
             if m.name == name then
                 m.state = state
-                ngx.log(ngx.DEBUG, "Updated state for middleware: ", name, " to: ", state)
+                logger.debug("Updated state for middleware:", name, "to:", state)
                 return true
             end
         end
@@ -121,7 +122,7 @@ function _M.set_state(name, state)
     end
     
     -- Throw error if middleware not found
-    ngx.log(ngx.ERR, "Middleware not found: " .. tostring(name))
+    logger.error("Middleware not found:", name)
     error("Middleware not found: " .. tostring(name))
 end
 
@@ -133,9 +134,9 @@ function _M.get_chain(route)
     for _, m in ipairs(global_middleware) do
         if m.state == STATES.ACTIVE then
             table.insert(chain, m)
-            ngx.log(ngx.DEBUG, "Added active global middleware to chain: ", m.name)
+            logger.debug("Added active global middleware to chain:", m.name)
         else
-            ngx.log(ngx.DEBUG, "Skipped inactive global middleware: ", m.name)
+            logger.debug("Skipped inactive global middleware:", m.name)
         end
     end
     
@@ -144,9 +145,9 @@ function _M.get_chain(route)
         for _, m in ipairs(route_middleware[route]) do
             if m.state == STATES.ACTIVE then
                 table.insert(chain, m)
-                ngx.log(ngx.DEBUG, "Added active route middleware to chain: ", m.name, " for route: ", route)
+                logger.debug("Added active route middleware to chain:", m.name, "for route:", route)
             else
-                ngx.log(ngx.DEBUG, "Skipped inactive route middleware: ", m.name, " for route: ", route)
+                logger.debug("Skipped inactive route middleware:", m.name, "for route:", route)
             end
         end
     end
@@ -157,34 +158,34 @@ end
 -- Execute middleware chain for a route
 function _M.run(route)
     local chain = _M.get_chain(route)
-    ngx.log(ngx.DEBUG, "Running middleware chain for route: ", route, ", chain length: ", #chain)
+    logger.debug("Running middleware chain for route:", route, ", chain length:", #chain)
     
-    for _, handler in ipairs(chain) do
+    for _, middleware in ipairs(chain) do
         -- Skip disabled middleware
-        if handler.state ~= STATES.ACTIVE then
-            ngx.log(ngx.DEBUG, "Skipping disabled middleware: ", handler.name)
+        if middleware.state ~= STATES.ACTIVE then
+            logger.debug("Skipping disabled middleware:", middleware.name)
             goto continue
         end
         
-        ngx.log(ngx.DEBUG, "Executing middleware: ", handler.name)
+        logger.debug("Executing middleware:", middleware.name)
         
         -- Execute with error handling
-        local ok, result = pcall(function() return handler:handle() end)
+        local ok, result = pcall(function() return middleware:handle() end)
         if not ok then
-            ngx.log(ngx.ERR, "Middleware error in ", handler.name, ": ", result)
-            error("Middleware " .. handler.name .. " failed: " .. tostring(result))
+            logger.error("Middleware error in", middleware.name .. ":", result)
+            error("Middleware " .. middleware.name .. " failed: " .. tostring(result))
         end
         
         -- If handler returns false, stop the chain
         if result == false then
-            ngx.log(ngx.DEBUG, "Middleware chain stopped by: ", handler.name)
+            logger.debug("Middleware chain stopped by:", middleware.name)
             return false
         end
         
         ::continue::
     end
     
-    ngx.log(ngx.DEBUG, "Middleware chain completed successfully")
+    logger.debug("Middleware chain completed successfully")
     return true
 end
 
@@ -197,7 +198,7 @@ end
 function _M.reset()
     local info = debug.getinfo(2, "Sln")
     local caller = info.short_src .. ":" .. info.currentline
-    ngx.log(ngx.DEBUG, "Resetting middleware chain, called from: ", caller)
+    logger.debug("Resetting middleware chain, called from:", caller)
     
     -- Clear the middleware tables
     for k in pairs(global_middleware) do
@@ -206,10 +207,10 @@ function _M.reset()
     for k in pairs(route_middleware) do
         route_middleware[k] = nil
     end
-    ngx.log(ngx.DEBUG, "Middleware chain reset complete")
+    logger.debug("Middleware chain reset complete")
 end
 
--- Export states for tests
+-- Export states
 _M.STATES = STATES
 
 return _M
