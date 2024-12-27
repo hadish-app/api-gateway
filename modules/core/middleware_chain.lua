@@ -1,16 +1,215 @@
--- TODO: Implement core middleware framework
-    -- Support both global and route-specific middleware
-    -- Allow for easy addition of new middleware
-    -- Allow for easy removal of middleware
-    -- Allow for easy modification of middleware
-    -- Allow for easy addition of new routes
-    -- Allow for easy removal of routes
-    -- Allow for easy modification of routes
+local _M = {}
 
-    -- Example implementation showing middleware chain usage:
-    -- local chain = require("middleware_chain")    
-    -- local logging = require("middleware.logging.logging")
-    -- if config.enable_cors then
-    --     chain.use(require("middleware.security.cors"))
-    -- end    
-    -- chain.use(logging)   -- Add request/response logging middleware
+-- Tables to store middleware
+local global_middleware = {}  -- For all routes
+local route_middleware = {}   -- Per-route middleware
+
+-- Middleware states
+local STATES = {
+    ACTIVE = "active",
+    DISABLED = "disabled"
+}
+
+-- Helper function to validate state
+local function is_valid_state(state)
+    for _, valid_state in pairs(STATES) do
+        if state == valid_state then
+            return true
+        end
+    end
+    return false
+end
+
+-- Helper function to validate middleware
+local function validate_middleware(handler, name)
+    if type(handler) ~= "table" then
+        error("Middleware must be a table, got: " .. type(handler))
+    end
+    
+    if type(handler.handle) ~= "function" then
+        error("Middleware must have a handle function")
+    end
+    
+    -- Set defaults if not provided
+    handler.name = name or handler.name or "unnamed_middleware"
+    handler.priority = handler.priority or 100
+    handler.state = handler.state or STATES.DISABLED
+    handler.routes = handler.routes or {}  -- Empty means global
+    
+    ngx.log(ngx.DEBUG, "Validated middleware: ", name, ", state: ", handler.state)
+end
+
+-- Add middleware
+function _M.use(handler, name)
+    validate_middleware(handler, name)
+    
+    -- Determine if route-specific or global
+    if #handler.routes > 0 then
+        -- Store per route
+        for _, route in ipairs(handler.routes) do
+            route_middleware[route] = route_middleware[route] or {}
+            table.insert(route_middleware[route], handler)
+            ngx.log(ngx.DEBUG, "Added route middleware: ", name, " for route: ", route)
+        end
+    else
+        -- Store globally
+        table.insert(global_middleware, handler)
+        ngx.log(ngx.DEBUG, "Added global middleware: ", name)
+    end
+    
+    -- Sort middleware by priority (lower numbers run first)
+    local function sort_by_priority(a, b)
+        return a.priority < b.priority
+    end
+    
+    table.sort(global_middleware, sort_by_priority)
+    for _, route_handlers in pairs(route_middleware) do
+        table.sort(route_handlers, sort_by_priority)
+    end
+end
+
+-- Remove middleware by name
+function _M.remove(name)
+    -- Remove from global middleware
+    for i, m in ipairs(global_middleware) do
+        if m.name == name then
+            table.remove(global_middleware, i)
+            ngx.log(ngx.DEBUG, "Removed global middleware: ", name)
+            break
+        end
+    end
+    
+    -- Remove from route middleware
+    for route, handlers in pairs(route_middleware) do
+        for i, m in ipairs(handlers) do
+            if m.name == name then
+                table.remove(handlers, i)
+                ngx.log(ngx.DEBUG, "Removed route middleware: ", name, " from route: ", route)
+                break
+            end
+        end
+    end
+end
+
+-- Enable/disable middleware
+function _M.set_state(name, state)
+    if not is_valid_state(state) then
+        error("Invalid state: " .. tostring(state))
+    end
+    
+    local function update_state(middleware_list)
+        for _, m in ipairs(middleware_list) do
+            if m.name == name then
+                m.state = state
+                ngx.log(ngx.DEBUG, "Updated state for middleware: ", name, " to: ", state)
+                return true
+            end
+        end
+        return false
+    end
+    
+    -- Update in global middleware
+    if update_state(global_middleware) then
+        return true
+    end
+    
+    -- Update in route middleware
+    for _, handlers in pairs(route_middleware) do
+        if update_state(handlers) then
+            return true
+        end
+    end
+    
+    -- Throw error if middleware not found
+    ngx.log(ngx.ERR, "Middleware not found: " .. tostring(name))
+    error("Middleware not found: " .. tostring(name))
+end
+
+-- Get middleware chain for a specific route
+function _M.get_chain(route)
+    local chain = {}
+    
+    -- Add global middleware
+    for _, m in ipairs(global_middleware) do
+        if m.state == STATES.ACTIVE then
+            table.insert(chain, m)
+            ngx.log(ngx.DEBUG, "Added active global middleware to chain: ", m.name)
+        else
+            ngx.log(ngx.DEBUG, "Skipped inactive global middleware: ", m.name)
+        end
+    end
+    
+    -- Add route-specific middleware
+    if route and route_middleware[route] then
+        for _, m in ipairs(route_middleware[route]) do
+            if m.state == STATES.ACTIVE then
+                table.insert(chain, m)
+                ngx.log(ngx.DEBUG, "Added active route middleware to chain: ", m.name, " for route: ", route)
+            else
+                ngx.log(ngx.DEBUG, "Skipped inactive route middleware: ", m.name, " for route: ", route)
+            end
+        end
+    end
+    
+    return chain
+end
+
+-- Execute middleware chain for a route
+function _M.run(route)
+    local chain = _M.get_chain(route)
+    ngx.log(ngx.DEBUG, "Running middleware chain for route: ", route, ", chain length: ", #chain)
+    
+    for _, handler in ipairs(chain) do
+        -- Skip disabled middleware
+        if handler.state ~= STATES.ACTIVE then
+            ngx.log(ngx.DEBUG, "Skipping disabled middleware: ", handler.name)
+            goto continue
+        end
+        
+        ngx.log(ngx.DEBUG, "Executing middleware: ", handler.name)
+        
+        -- Execute with error handling
+        local ok, result = pcall(function() return handler:handle() end)
+        if not ok then
+            ngx.log(ngx.ERR, "Middleware error in ", handler.name, ": ", result)
+            error("Middleware " .. handler.name .. " failed: " .. tostring(result))
+        end
+        
+        -- If handler returns false, stop the chain
+        if result == false then
+            ngx.log(ngx.DEBUG, "Middleware chain stopped by: ", handler.name)
+            return false
+        end
+        
+        ::continue::
+    end
+    
+    ngx.log(ngx.DEBUG, "Middleware chain completed successfully")
+    return true
+end
+
+-- Initialize default middleware
+function _M.init()
+    -- No default middleware for now
+end
+
+-- Add a reset function to the module
+function _M.reset()
+    local info = debug.getinfo(2, "Sln")
+    local caller = info.short_src .. ":" .. info.currentline
+    ngx.log(ngx.DEBUG, "Resetting middleware chain, called from: ", caller)
+    
+    -- Clear the middleware tables
+    for k in pairs(global_middleware) do
+        global_middleware[k] = nil
+    end
+    for k in pairs(route_middleware) do
+        route_middleware[k] = nil
+    end
+    ngx.log(ngx.DEBUG, "Middleware chain reset complete")
+end
+
+-- Export states for tests
+_M.STATES = STATES
+
+return _M
