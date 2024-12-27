@@ -1,5 +1,0 @@
--- TODO: Implement logging module
-    -- Structured logging format
-    -- Log to console and file
-    -- Log to file with rotation
-    -- Metrics collection
