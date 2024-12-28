@@ -41,7 +41,10 @@ The testing framework is built on these core principles:
 │   └── test_utils.lua       # Testing utilities and assertions
 ├── modules/                  # Module-specific tests
 │   ├── core/                # Core module tests
-│   │   └── config_init_test.lua
+│   │   ├── config_init_test.lua
+│   │   └── middleware_chain_test.lua
+│   ├── middleware/          # Middleware tests
+│   │   └── request_id_test.lua
 │   └── utils/               # Utility module tests
 │       └── env_test.lua
 ```
@@ -55,7 +58,14 @@ The testing framework is built on these core principles:
 - One test file per module or major function
 - Naming convention: `{module_name}_test.lua`
 
-### 2. Integration Tests
+### 2. Middleware Tests
+
+- Test middleware functionality and chain integration
+- Located in `/tests/modules/middleware/`
+- Test both standalone and chain behavior
+- Include state management and configuration tests
+
+### 3. Integration Tests
 
 - Test interaction between modules
 - Verify end-to-end workflows
@@ -77,6 +87,46 @@ _M.tests = {
         func = function()
             -- Test implementation
             test_utils.assert_equals(expected, actual, "Assert message")
+        end
+    }
+}
+
+return _M
+```
+
+### Middleware Test Example
+
+```lua
+-- Request ID middleware test
+local test_utils = require "tests.core.test_utils"
+local middleware_chain = require "modules.core.middleware_chain"
+local middleware_registry = require "modules.middleware.registry"
+
+local _M = {}
+
+-- Reset state before each test
+local function reset_state()
+    middleware_chain.reset()
+    ngx.ctx = {}
+    ngx.header = {}
+
+    -- Re-register middleware
+    middleware_registry.register()
+end
+
+_M.tests = {
+    {
+        name = "Test: Request ID generation",
+        func = function()
+            reset_state()
+
+            -- Run middleware chain
+            local result = middleware_chain.run("/")
+
+            -- Verify
+            test_utils.assert_equals(true, result)
+            test_utils.assert_not_nil(ngx.ctx.request_id)
+            test_utils.assert_not_nil(ngx.header["X-Request-ID"])
         end
     }
 }

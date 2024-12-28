@@ -71,7 +71,9 @@ Request/Response middleware:
 - `/logging` - Logging middleware
 - `/metrics` - Metrics collection
 - `/security` - Security features (CORS, IP ban, rate limiting)
+- `middleware_runner.lua` - Middleware chain execution handler
 - `registry.lua` - Middleware registration and management
+- `request_id.lua` - Request ID generation and tracking
 - `request.lua` - Request processing
 - `response.lua` - Response processing
 

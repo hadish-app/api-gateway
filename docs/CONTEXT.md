@@ -565,9 +565,9 @@ MONITORING_METRICS_ENABLED=true
 - Resource utilization
 - Custom metric support
 
-### 9.2 Logging
+### 9.2 Request Tracking
 
-- Structured logging
-- Debug-level detail
-- Performance logging
-- Security event logging
+- Unique request ID generation
+- ID propagation across services
+- Support for external request IDs
+- Correlation with logs and metrics
