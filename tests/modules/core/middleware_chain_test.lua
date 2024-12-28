@@ -20,14 +20,22 @@ end
 local function cleanup()
     ngx.log(ngx.DEBUG, "Middleware Chain Test: Starting cleanup")
     
-    -- Reset the middleware chain
-    middleware_chain.reset()
-    
     -- Clear any test data from shared dictionaries
     for dict_name, dict in pairs(ngx.shared) do
         dict:flush_all()
         dict:flush_expired()
     end
+
+    -- Clear all test middlewares
+    middleware_chain.reset()
+
+    -- Re-initialize the entire application
+    local init = require "modules.core.init"
+    local ok, err = init.start()
+    if not ok then
+        ngx.log(ngx.ERR, "Failed to re-initialize application after cleanup: ", err)
+    end
+
     
     ngx.log(ngx.DEBUG, "Middleware Chain Test: Cleanup complete")
 end

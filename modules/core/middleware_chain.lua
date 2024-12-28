@@ -210,6 +210,27 @@ function _M.reset()
     ngx.log(ngx.DEBUG, "Middleware chain reset complete")
 end
 
+-- Execute middleware chain for a route with error handling
+function _M.run_chain()
+    local ok, err = pcall(function()
+        return _M.run(ngx.var.uri)
+    end)
+    
+    if not ok then
+        ngx.log(ngx.ERR, "Middleware chain error: ", err)
+        ngx.status = 500
+        ngx.say("Internal Server Error")
+        return ngx.exit(ngx.HTTP_INTERNAL_SERVER_ERROR)
+    end
+    
+    -- If chain returns false, stop processing
+    if err == false then
+        return ngx.exit(ngx.HTTP_OK)
+    end
+    
+    return true
+end
+
 -- Export states
 _M.STATES = STATES
 

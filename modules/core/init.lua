@@ -97,7 +97,7 @@ local function bootstrap()
     
     -- Initialize configuration
     log(INFO, "Initializing configuration...")
-    ok, err = config.init()
+    local ok, err = config.init()
     if not ok then
         log(ERR, "Configuration initialization failed: " .. err)
         return nil, "Failed to initialize configuration: " .. err
@@ -118,7 +118,7 @@ end
 
 -- Application startup
 function _M.start()
-    -- Step 1: Bootstrap the application
+    -- Bootstrap the application
     local ok, err = bootstrap()
     if not ok then
         return nil, err
