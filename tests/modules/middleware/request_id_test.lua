@@ -1,6 +1,6 @@
 local test_utils = require "tests.core.test_utils"
 local middleware_chain = require "modules.core.middleware_chain"
-local middleware_registry = require "modules.core.middleware_registry"
+local middleware_registry = require "modules.middleware.registry"
 local request_id = require "modules.middleware.request_id"
 
 local _M = {}

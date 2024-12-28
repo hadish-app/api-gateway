@@ -13,7 +13,7 @@ local WARN = ngx.WARN
 
 -- Import modules
 local config = require "core.config"
-local middleware_registry = require "modules.core.middleware_registry"
+local middleware_registry = require "modules.middleware.registry"
 local middleware_chain = require "modules.core.middleware_chain"
 
 -- Configuration
