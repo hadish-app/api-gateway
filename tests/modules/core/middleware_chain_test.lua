@@ -3,12 +3,16 @@ local middleware_chain = require "modules.core.middleware_chain"
 
 local _M = {}
 
+-- Shared execution order table
+local execution_order = {}
+
 -- Helper function to reset state before each test
 local function reset_state()
     ngx.log(ngx.DEBUG, "Middleware Chain Test: Resetting state")
     middleware_chain.reset()
     ngx.ctx = {}  -- Reset context
     ngx.header = {}  -- Reset response headers
+    execution_order = {}
     ngx.log(ngx.DEBUG, "Middleware Chain Test: State reset complete")
 end
 
@@ -28,8 +32,7 @@ local function cleanup()
     ngx.log(ngx.DEBUG, "Middleware Chain Test: Cleanup complete")
 end
 
--- Shared execution order table
-local execution_order = {}
+
 
 -- Base middleware factory
 local function create_base_middleware(name, priority, routes)
