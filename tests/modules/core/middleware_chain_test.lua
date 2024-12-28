@@ -3,6 +3,31 @@ local middleware_chain = require "modules.core.middleware_chain"
 
 local _M = {}
 
+-- Helper function to reset state before each test
+local function reset_state()
+    ngx.log(ngx.DEBUG, "Middleware Chain Test: Resetting state")
+    middleware_chain.reset()
+    ngx.ctx = {}  -- Reset context
+    ngx.header = {}  -- Reset response headers
+    ngx.log(ngx.DEBUG, "Middleware Chain Test: State reset complete")
+end
+
+-- Helper function to cleanup after tests
+local function cleanup()
+    ngx.log(ngx.DEBUG, "Middleware Chain Test: Starting cleanup")
+    
+    -- Reset the middleware chain
+    middleware_chain.reset()
+    
+    -- Clear any test data from shared dictionaries
+    for dict_name, dict in pairs(ngx.shared) do
+        dict:flush_all()
+        dict:flush_expired()
+    end
+    
+    ngx.log(ngx.DEBUG, "Middleware Chain Test: Cleanup complete")
+end
+
 -- Shared execution order table
 local execution_order = {}
 
@@ -60,8 +85,7 @@ _M.tests = {
     {
         name = "Test: Basic middleware addition and execution",
         func = function()
-            -- Reset chain state before test
-            reset_chain()
+            reset_state()
             
             -- Create and add middleware
             ngx.log(ngx.DEBUG, "Creating test middleware m1")
@@ -114,14 +138,15 @@ _M.tests = {
             test_utils.assert_equals(3, m1.execution_count, "Enabled middleware should execute")
 
             ngx.log(ngx.DEBUG, "Test completed. Result: ", result, ", Execution count: ", m1.execution_count)
+            
+            cleanup()
         end
     },
     
     {
         name = "Test: Priority ordering",
         func = function()
-            -- Reset chain state before test
-            reset_chain()
+            reset_state()
             
             -- Create middleware with different priorities
             local m1 = create_test_middleware("m1", 50)
@@ -153,14 +178,15 @@ _M.tests = {
             test_utils.assert_equals("m3", execution_order[3], "M3 (priority 30) should execute third")
             test_utils.assert_equals("m5", execution_order[4], "M5 (priority 40) should execute fourth")
             test_utils.assert_equals("m1", execution_order[5], "M1 (priority 50) should execute last")
+            
+            cleanup()
         end
     },
     
     {
         name = "Test: Route-specific middleware",
         func = function()
-            -- Reset chain state before test
-            reset_chain()
+            reset_state()
             
             -- Create global and route-specific middleware
             local global_m = create_test_middleware("global", 10)
@@ -193,14 +219,15 @@ _M.tests = {
             test_utils.assert_equals(1, global_m.execution_count, "Global middleware should execute")
             test_utils.assert_equals(0, admin_m.execution_count, "Admin middleware should not execute")
             test_utils.assert_equals(1, api_m.execution_count, "API middleware should execute")
+            
+            cleanup()
         end
     },
     
     {
         name = "Test: Middleware state management",
         func = function()
-            -- Reset chain state before test
-            reset_chain()
+            reset_state()
             
             -- Create and add middleware
             local m1 = create_test_middleware("m1", 10)
@@ -243,15 +270,16 @@ _M.tests = {
             middleware_chain.set_state("m1", middleware_chain.STATES.DISABLED)
             middleware_chain.run("/")
             test_utils.assert_equals(2, m1.execution_count, "Final disabled state should be respected")
+            
+            cleanup()
         end
     },
     
     {
         name = "Test: Error handling",
         func = function()
-            -- Reset chain state before test
-            reset_chain()
-
+            reset_state()
+            
             local middleware_name = "failing_middleware"
             
             -- Create middleware that will fail
@@ -273,14 +301,15 @@ _M.tests = {
             test_utils.assert_equals(false, ok, "Chain should throw an error")
             test_utils.assert_equals(true, string.match(tostring(err), "Middleware " .. middleware_name .. " failed") ~= nil,
                 "Error should contain middleware failure message")
+            
+            cleanup()
         end
     },
     
     {
         name = "Test: Chain interruption",
         func = function()
-            -- Reset chain state before test
-            reset_chain()
+            reset_state()
             
             -- Create middleware chain where middle one stops execution
             local m1 = create_test_middleware("m1", 10)
@@ -305,8 +334,15 @@ _M.tests = {
             test_utils.assert_equals(1, m1.execution_count, "First middleware should execute")
             test_utils.assert_equals(1, m2.execution_count, "Second middleware should execute")
             test_utils.assert_equals(0, m3.execution_count, "Third middleware should not execute")
+            
+            cleanup()
         end
     }
 }
+
+-- Add cleanup after all tests
+function _M.after_all()
+    cleanup()
+end
 
 return _M
