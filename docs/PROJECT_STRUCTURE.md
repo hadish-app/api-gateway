@@ -66,16 +66,13 @@ Core functionality:
 
 #### `/modules/middleware`
 
-Request/Response middleware:
+Request processing middleware:
 
-- `/logging` - Logging middleware
-- `/metrics` - Metrics collection
-- `/security` - Security features (CORS, IP ban, rate limiting)
-- `middleware_runner.lua` - Middleware chain execution handler
+- `/request` - Request processing middleware
+  - `/validations` - Request validation middleware
+  - `/sanitizations` - Request sanitization middleware
 - `registry.lua` - Middleware registration and management
 - `request_id.lua` - Request ID generation and tracking
-- `request.lua` - Request processing
-- `response.lua` - Response processing
 
 #### `/modules/services`
 
@@ -128,10 +125,23 @@ Project documentation:
 - CORS: `/modules/middleware/security/cors.lua`
 - IP Banning: `/modules/middleware/security/ipban.lua`
 - Rate Limiting: `/modules/middleware/security/ratelimit.lua`
+- Request Validations: `/modules/middleware/request/validations/`
+  - Path Traversal Validation
+  - Content Validation
+  - Length Validation
+  - Method Validation
+  - Header Validation
+- Request Sanitizations: `/modules/middleware/request/sanitizations/`
+  - XSS Protection
+  - SQL Injection Protection
+  - Header Sanitization
 
 ### Monitoring
 
-- Logging: `/modules/middleware/logging/logging.lua`
+- Logging: Using Nginx built-in logging system
+  - Access logs configuration: `configs/core/access_log.conf`
+  - Error logs configuration: `configs/core/error_log.conf`
+  - Debug logs configuration: `configs/core/debug_log.conf`
 - Metrics: `/modules/middleware/metrics/`
 
 ## Configuration Flow

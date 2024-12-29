@@ -1,1 +1,0 @@
--- TODO: Implement metrics collection middleware. Store metrics in a shared dictionary.

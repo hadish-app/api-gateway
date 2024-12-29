@@ -14,18 +14,27 @@ The middleware registry (`modules/middleware/registry.lua`) manages middleware r
 - Automatic middleware registration during startup
 - State management for core middleware components
 
-### Middleware Runner
+### Request Processing Middleware
 
-The middleware runner (`modules/middleware/middleware_runner.lua`) handles the execution of middleware chains. It provides:
+The request processing middleware is organized into two main categories:
 
-- Safe middleware chain execution with error handling
-- Standardized response handling for middleware errors
-- Chain interruption management
-- Common interface for all service endpoints
+#### 1. Request Validations (`/modules/middleware/request/validations/`)
 
-### Core Middleware
+- `path_traversal_validator.lua` - Prevents path traversal attacks
+- `content_validator.lua` - Validates request content
+- `length_validator.lua` - Validates request length
+- `method_validator.lua` - Validates HTTP methods
+- `header_validator.lua` - Validates request headers
 
-#### Request ID Middleware
+#### 2. Request Sanitizations (`/modules/middleware/request/sanitizations/`)
+
+- `xss_protection_sanitizer.lua` - Protects against XSS attacks
+- `sql_injection_sanitizer.lua` - Protects against SQL injection
+- `header_sanitizer.lua` - Sanitizes request headers
+
+### Request ID Middleware
+
+The request ID middleware (`modules/middleware/request_id.lua`):
 
 - Generates and tracks unique request IDs
 - Preserves existing request IDs from incoming requests
@@ -43,34 +52,24 @@ The middleware runner (`modules/middleware/middleware_runner.lua`) handles the e
 
 ## Usage
 
-### Using the Middleware Runner
-
-In your location blocks or service endpoints, use the middleware runner to execute the middleware chain:
+### Using Middleware in Location Blocks
 
 ```lua
 -- In your location block
 location /your-endpoint {
     access_by_lua_block {
-        local middleware_runner = require("modules.middleware.middleware_runner")
-        local your_service = require("modules.services.your_service")
+        local middleware_chain = require("modules.core.middleware_chain")
 
-        -- Run middleware chain first
-        if not middleware_runner.run() then
+        -- Run middleware chain
+        if not middleware_chain:run() then
             return  -- Chain was interrupted
         end
 
         -- Continue with your service logic
-        your_service.handle()
+        -- ...
     }
 }
 ```
-
-The middleware runner will:
-
-1. Execute all applicable middleware in priority order
-2. Handle any errors that occur during middleware execution
-3. Return `false` if the chain was interrupted (e.g., by authentication failure)
-4. Return `true` if all middleware executed successfully
 
 ### Creating Middleware
 
@@ -93,23 +92,13 @@ local middleware = {
 ### Registering Middleware
 
 ```lua
--- Option 1: Using the Registry (Recommended)
--- Add to the REGISTRY table in modules/middleware/registry.lua
+-- In modules/middleware/registry.lua
 local REGISTRY = {
     my_middleware = {
         module = "modules.middleware.my_middleware",
         state = middleware_chain.STATES.ACTIVE
     }
 }
-
--- Option 2: Manual Registration
-local middleware_chain = require "modules.core.middleware_chain"
-
--- Add middleware to the chain
-middleware_chain.use(middleware, "my_middleware")
-
--- Enable the middleware
-middleware_chain.set_state("my_middleware", middleware_chain.STATES.ACTIVE)
 ```
 
 ### Execution Order
