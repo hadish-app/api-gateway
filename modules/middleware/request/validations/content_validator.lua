@@ -1,2 +1,0 @@
--- TODO: Implement content validator:
--- - check if content type is supported

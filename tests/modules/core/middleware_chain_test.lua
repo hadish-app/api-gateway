@@ -16,32 +16,6 @@ local function reset_state()
     ngx.log(ngx.DEBUG, "Middleware Chain Test: State reset complete")
 end
 
--- Helper function to cleanup after tests
-local function cleanup()
-    ngx.log(ngx.DEBUG, "Middleware Chain Test: Starting cleanup")
-    
-    -- Clear any test data from shared dictionaries
-    for dict_name, dict in pairs(ngx.shared) do
-        dict:flush_all()
-        dict:flush_expired()
-    end
-
-    -- Clear all test middlewares
-    middleware_chain.reset()
-
-    -- Re-initialize the entire application
-    local init = require "modules.core.init"
-    local ok, err = init.start()
-    if not ok then
-        ngx.log(ngx.ERR, "Failed to re-initialize application after cleanup: ", err)
-    end
-
-    
-    ngx.log(ngx.DEBUG, "Middleware Chain Test: Cleanup complete")
-end
-
-
-
 -- Base middleware factory
 local function create_base_middleware(name, priority, routes)
     return {
@@ -150,7 +124,7 @@ _M.tests = {
 
             ngx.log(ngx.DEBUG, "Test completed. Result: ", result, ", Execution count: ", m1.execution_count)
             
-            cleanup()
+            
         end
     },
     
@@ -190,7 +164,7 @@ _M.tests = {
             test_utils.assert_equals("m5", execution_order[4], "M5 (priority 40) should execute fourth")
             test_utils.assert_equals("m1", execution_order[5], "M1 (priority 50) should execute last")
             
-            cleanup()
+            
         end
     },
     
@@ -231,7 +205,7 @@ _M.tests = {
             test_utils.assert_equals(0, admin_m.execution_count, "Admin middleware should not execute")
             test_utils.assert_equals(1, api_m.execution_count, "API middleware should execute")
             
-            cleanup()
+            
         end
     },
     
@@ -282,7 +256,7 @@ _M.tests = {
             middleware_chain.run("/")
             test_utils.assert_equals(2, m1.execution_count, "Final disabled state should be respected")
             
-            cleanup()
+            
         end
     },
     
@@ -313,7 +287,7 @@ _M.tests = {
             test_utils.assert_equals(true, string.match(tostring(err), "Middleware " .. middleware_name .. " failed") ~= nil,
                 "Error should contain middleware failure message")
             
-            cleanup()
+            
         end
     },
     
@@ -344,16 +318,14 @@ _M.tests = {
             test_utils.assert_equals(false, result, "Chain should return false when interrupted")
             test_utils.assert_equals(1, m1.execution_count, "First middleware should execute")
             test_utils.assert_equals(1, m2.execution_count, "Second middleware should execute")
-            test_utils.assert_equals(0, m3.execution_count, "Third middleware should not execute")
-            
-            cleanup()
+            test_utils.assert_equals(0, m3.execution_count, "Third middleware should not execute")            
         end
     }
 }
 
 -- Add cleanup after all tests
 function _M.after_all()
-    cleanup()
+    ngx.log(ngx.NOTICE, "Middleware chain tests completed. Remember to restart the container to reset state.")
 end
 
 return _M
