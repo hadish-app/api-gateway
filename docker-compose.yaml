@@ -2,7 +2,9 @@ name: hadish
 
 services:
   api-gateway:
-    image: openresty/openresty:1.21.4.1-6-alpine-fat
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: api-gateway
     env_file:
       - .env
@@ -14,17 +16,14 @@ services:
       - ./tests:/usr/local/openresty/nginx/tests:ro
       - ./logs:/usr/local/openresty/nginx/logs
 
-    command: >
-      sh -c "
-             opm get thibaultcha/lua-resty-jit-uuid &&
-             /usr/local/openresty/bin/openresty -g 'daemon off;'"
-
-    # healthcheck:
-    #   test: ["CMD", "curl", "-f", "http://localhost/health"]
-    #   interval: 30s
-    #   timeout: 10s
-    #   retries: 3
-    #   start_period: 10s
+    develop:
+      watch:
+        - action: rebuild
+          path: ./modules
+        - action: rebuild
+          path: ./tests
+        - action: rebuild
+          path: ./configs
 
     restart: unless-stopped
     networks:
