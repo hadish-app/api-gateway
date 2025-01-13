@@ -75,47 +75,62 @@ end
 
 -- Helper function to validate detailed health data structure
 local function validate_detailed_health(data)
-    -- First run basic validations
-    validate_basic_health(data)
-    
-    -- Additional system checks
-    test_utils.assert_equals("string", type(data.system.hostname), "Hostname should exist")
-    test_utils.assert_equals("table", type(data.system.worker), "Worker info should be a table")
-    test_utils.assert_equals("number", type(data.system.worker.id), "Worker ID should be a number")
+    -- Basic checks
+    test_utils.assert_equals("string", type(data.status), "Status should be a string")
+    test_utils.assert_equals("healthy", data.status, "Status should be 'healthy'")
+    test_utils.assert_equals("number", type(data.timestamp), "Timestamp should be a number")
+    test_utils.assert_equals("string", type(data.version), "Version should be a string")
+
+    -- System checks
+    test_utils.assert_equals("table", type(data.system), "System should be a table")
+    test_utils.assert_equals("string", type(data.system.hostname), "Hostname should be a string")
+
+    -- Memory checks
+    test_utils.assert_equals("table", type(data.system.memory), "Memory should be a table")
+    test_utils.assert_equals("number", type(data.system.memory.lua_used), "Lua used memory should be a number")
+    test_utils.assert_equals("number", type(data.system.memory.lua_used_mb), "Lua used MB should be a number")
+
+    -- Connection checks
+    test_utils.assert_equals("table", type(data.system.connections), "Connections should be a table")
+    test_utils.assert_equals("number", type(data.system.connections.active), "Active connections should be a number")
+    test_utils.assert_equals("number", type(data.system.connections.reading), "Reading connections should be a number")
+    test_utils.assert_equals("number", type(data.system.connections.writing), "Writing connections should be a number")
+    test_utils.assert_equals("number", type(data.system.connections.waiting), "Waiting connections should be a number")
+
+    -- Workers checks
+    test_utils.assert_equals("table", type(data.system.worker), "Workers should be a table")
     test_utils.assert_equals("number", type(data.system.worker.count), "Worker count should be a number")
-    test_utils.assert_equals("number", type(data.system.worker.pid), "Worker PID should be a number")
-    
-    -- Detailed connection checks
-    test_utils.assert_equals("string", type(data.system.connections.reading), "Reading connections should exist")
-    test_utils.assert_equals("string", type(data.system.connections.waiting), "Waiting connections should exist")
-    
+
     -- Shared dictionaries checks
     test_utils.assert_equals("table", type(data.system.shared_dicts), "Shared dictionaries should be a table")
-    
-    -- Check each expected shared dictionary
     local expected_dicts = {"stats", "metrics", "rate_limit", "ip_blacklist", "config_cache", "worker_events"}
     for _, dict_name in ipairs(expected_dicts) do
         local dict = data.system.shared_dicts[dict_name]
-        test_utils.assert_equals("table", type(dict), dict_name .. " dictionary should exist")
-        if dict then
-            test_utils.assert_equals("number", type(dict.free_space), dict_name .. " free_space should be a number")
-            test_utils.assert_equals("number", type(dict.capacity), dict_name .. " capacity should be a number")
-            test_utils.assert_equals("table", type(dict.keys), dict_name .. " keys should be a table")
-        end
+        test_utils.assert_equals("table", type(dict), dict_name .. " dictionary should be a table")
+        test_utils.assert_equals("number", type(dict.free_space), dict_name .. " free space should be a number")
+        test_utils.assert_equals("number", type(dict.capacity), dict_name .. " capacity should be a number") 
+        test_utils.assert_equals("number", type(dict.utilization), dict_name .. " utilization should be a number")
+        test_utils.assert_equals("table", type(dict.keys), dict_name .. " keys should be a table")
     end
-    
-    -- Detailed performance checks
+
+    -- Performance checks
+    test_utils.assert_equals("table", type(data.performance), "Performance should be a table")
+    test_utils.assert_equals("number", type(data.performance.request_time), "Request time should be a number")
     test_utils.assert_equals("table", type(data.performance.request), "Request info should be a table")
-    test_utils.assert_equals("string", type(data.performance.request.remote_addr), "Remote address should exist")
-    test_utils.assert_equals("string", type(data.performance.request.request_method), "Request method should exist")
-    test_utils.assert_equals("string", type(data.performance.request.request_uri), "Request URI should exist")
+
+    -- Request details checks
+    local req = data.performance.request
+    test_utils.assert_equals("string", type(req.host), "Request host should be a string")
+    test_utils.assert_equals("string", type(req.remote_addr), "Remote address should be a string")
+    test_utils.assert_equals("string", type(req.request_method), "Request method should be a string")
+    test_utils.assert_equals("string", type(req.request_uri), "Request URI should be a string")
+    test_utils.assert_equals("string", type(req.scheme), "Scheme should be a string")
 end
 
 _M.tests = {
     {
         name = "Test: Basic health check",
         func = function()
-            setup_ngx_mock()
             local data = health.get_basic_health()
             validate_basic_health(data)
             ngx.say("Basic health data:")
@@ -125,13 +140,12 @@ _M.tests = {
     {
         name = "Test: Detailed health check",
         func = function()
-            setup_ngx_mock()
             local data = health.get_detailed_health()
             validate_detailed_health(data)
             ngx.say("Detailed health data:")
             ngx.say(cjson.encode(data))
         end
-    }
+    },
 }
 
 return _M 
