@@ -1,166 +1,165 @@
-# Hadish API Gateway - Project Structure
+# Project Structure
 
 ## Overview
 
-This document provides a comprehensive overview of the Hadish API Gateway project structure, explaining the purpose and organization of each directory and key files.
+The API Gateway follows a modular architecture that combines OpenResty's phase-based processing with a flexible middleware system. This hybrid approach provides both structured request processing and extensible middleware capabilities.
 
-## Root Directory
+## Directory Structure
 
-- `docker-compose.yaml` - Main container orchestration configuration
-- `.env` - Environment variables configuration
-- `.dockerignore` - Docker build exclusions
-- `.gitignore` - Git exclusions
-- `api-gateway.code-workspace` - VS Code workspace settings
+```
+/
+├── configs/                 # Configuration files
+│   ├── core/               # Core configuration
+│   ├── http/              # HTTP-specific configs
+│   ├── locations/         # Location-specific configs
+│   ├── lua/              # Lua-specific configs
+│   └── nginx.conf         # Main nginx configuration
+│
+├── modules/               # Lua modules
+│   ├── core/             # Core functionality
+│   │   ├── phase_handlers.lua  # OpenResty phase handlers
+│   │   └── middleware_chain.lua # Middleware chain implementation
+│   │
+│   ├── middleware/       # Middleware components
+│   │   ├── registry.lua  # Middleware registration
+│   │   └── request_id.lua # Request ID middleware
+│   │
+│   ├── services/        # Business logic services
+│   │   └── health.lua   # Health check service
+│   │
+│   └── utils/          # Utility functions
+│
+├── tests/               # Test files
+│   ├── core/           # Core tests
+│   └── modules/        # Module tests
+│       └── middleware/ # Middleware tests
+│
+├── logs/               # Application logs
+│
+├── docs/               # Documentation
+│   ├── PROJECT_STRUCTURE.md  # This file
+│   ├── middleware.md    # Middleware documentation
+│   └── ...
+│
+├── docker-compose.yaml # Docker compose configuration
+└── .env               # Environment variables
+```
 
-## Directories
+## Key Components
 
-### `/configs`
+### Core Components
 
-Configuration files for OpenResty/Nginx.
+1. **Phase Handlers** (`modules/core/phase_handlers.lua`)
 
-#### `/configs/core`
+   - Manages OpenResty's request processing phases
+   - Coordinates middleware execution
+   - Handles initialization and cleanup
+   - Manages shared dictionaries and state
+   - Implements worker initialization
 
-Core Nginx configurations:
+2. **Middleware Chain** (`modules/core/middleware_chain.lua`)
+   - Implements middleware chain execution
+   - Manages middleware ordering
+   - Handles phase-specific execution
+   - Provides error handling
 
-- `access_log.conf` - Access logging configuration
-- `basic.conf` - Basic Nginx settings
-- `debug_log.conf` - Debug logging settings
-- `env.conf` - Environment variable handling
-- `error_log.conf` - Error logging configuration
-- `ipban.conf` - IP banning rules
-- `mime.conf` - MIME type definitions
-- `ratelimit.conf` - Rate limiting rules
-- `security.conf` - Security settings
-- `time_maps.conf` - Time-based configurations
+### Middleware System
 
-#### `/configs/locations`
+1. **Registry** (`modules/middleware/registry.lua`)
 
-Nginx location blocks for different endpoints:
+   - Manages middleware registration
+   - Handles phase-specific configuration
+   - Validates middleware phases
+   - Controls middleware state and priority
+   - Supports multi-phase middleware
 
-- `admin.conf` - Admin API endpoints
-- `debug.conf` - Debugging endpoints
-- `default.conf` - Default location handling
-- `errors.conf` - Error page configurations
-- `health.conf` - Health check endpoints
-- `test.conf` - Testing endpoints
+2. **Request ID Middleware** (`modules/middleware/request_id.lua`)
+   - Example of multi-phase middleware
+   - Implements access, header_filter, and log phases
+   - Demonstrates context sharing between phases
 
-#### `/configs/lua`
+### Configuration
 
-Lua-specific configurations:
+1. **Core Configuration** (`configs/core/`)
 
-- `dict.conf` - Shared dictionary definitions
-- `init.conf` - Lua initialization
-- `paths.conf` - Lua path configurations
+   - Basic nginx settings
+   - Environment configuration
+   - Security settings
 
-### `/modules`
+2. **Location Configuration** (`configs/locations/`)
 
-Lua modules implementing the gateway functionality.
+   - Endpoint-specific settings
+   - Phase handler integration
+   - Middleware configuration
 
-#### `/modules/core`
+3. **Lua Configuration** (`configs/lua/`)
+   - Lua-specific settings
+   - Shared dictionary configuration
+   - Initialization settings
 
-Core functionality:
+### Shared Dictionaries
 
-- `config.lua` - Configuration management
-- `init.lua` - Core initialization
-- `middleware_chain.lua` - Middleware handling
+The system uses several shared dictionaries for state management:
 
-#### `/modules/middleware`
+- `stats`: Runtime statistics
+- `metrics`: Performance metrics
+- `config_cache`: Configuration cache
+- `rate_limit`: Rate limiting data
+- `ip_blacklist`: IP blocking list
+- `worker_events`: Worker communication
 
-Request processing middleware:
+## Phase Processing
 
-- `/request` - Request processing middleware
-  - `/validations` - Request validation middleware
-  - `/sanitizations` - Request sanitization middleware
-- `registry.lua` - Middleware registration and management
-- `request_id.lua` - Request ID generation and tracking
+The system processes requests through the following phases:
 
-#### `/modules/services`
+1. **Initialization**
 
-Service-specific handlers:
+   - `init_by_lua`: One-time initialization
+   - `init_worker_by_lua`: Per-worker initialization
 
-- `admin.lua` - Admin service implementation
-- `health.lua` - Health check implementation
+2. **Request Processing**
+   - `access_by_lua`: Authentication and validation
+   - `content_by_lua`: Main request handling
+   - `header_filter_by_lua`: Response header processing
+   - `body_filter_by_lua`: Response body processing
+   - `log_by_lua`: Logging and cleanup
 
-#### `/modules/utils`
+## Testing Structure
 
-Utility functions:
+1. **Core Tests** (`tests/core/`)
 
-- `env.lua` - Environment variable utilities
-- `type_conversion.lua` - Data type conversion utilities
+   - Phase handler tests
+   - Middleware chain tests
+   - Utility function tests
 
-### `/tests`
+2. **Middleware Tests** (`tests/modules/middleware/`)
+   - Registry tests
+   - Individual middleware tests
+   - Phase interaction tests
 
-Test suites and utilities.
+## Best Practices
 
-#### `/tests/core`
+1. **Phase Usage**
 
-- `test_utils.lua` - Testing utilities and helpers
+   - Use appropriate phases for specific operations
+   - Keep phase handlers focused
+   - Properly manage state between phases
 
-#### `/tests/modules`
+2. **Middleware Development**
 
-Module-specific tests:
+   - Follow single responsibility principle
+   - Implement proper phase handling
+   - Use appropriate context sharing
+   - Handle errors gracefully
 
-- `/core` - Core module tests
-- `/services` - Service tests
-- `/utils` - Utility function tests
+3. **Configuration**
 
-### `/docs`
+   - Keep configurations modular
+   - Use environment variables
+   - Maintain clear documentation
 
-Project documentation:
-
-- `CONTEXT.md` - Project context and requirements
-- `TESTING.md` - Testing documentation
-- `PROJECT_STRUCTURE.md` - This document
-
-## Key Features Organization
-
-### Health Checking
-
-- Configuration: `/configs/locations/health.conf`
-- Implementation: `/modules/services/health.lua`
-- Tests: `/tests/modules/services/health_test.lua`
-
-### Security Features
-
-- CORS: `/modules/middleware/security/cors.lua`
-- IP Banning: `/modules/middleware/security/ipban.lua`
-- Rate Limiting: `/modules/middleware/security/ratelimit.lua`
-- Request Validations: `/modules/middleware/request/validations/`
-  - Path Traversal Validation
-  - Content Validation
-  - Length Validation
-  - Method Validation
-  - Header Validation
-- Request Sanitizations: `/modules/middleware/request/sanitizations/`
-  - XSS Protection
-  - SQL Injection Protection
-  - Header Sanitization
-
-### Monitoring
-
-- Logging: Using Nginx built-in logging system
-  - Access logs configuration: `configs/core/access_log.conf`
-  - Error logs configuration: `configs/core/error_log.conf`
-  - Debug logs configuration: `configs/core/debug_log.conf`
-- Metrics: `/modules/middleware/metrics/`
-
-## Configuration Flow
-
-1. Environment variables (`.env`)
-2. Nginx main config (`configs/nginx.conf`)
-3. Core configs (`configs/core/`)
-4. Location configs (`configs/locations/`)
-5. Lua initialization (`configs/lua/`)
-
-## Testing Organization
-
-- Unit Tests: Individual module tests in `/tests/modules/`
-- Integration Tests: Service-level tests
-- Test Utilities: Common test functions in `/tests/core/`
-
-## Development Workflow
-
-1. Configuration changes in `/configs`
-2. Implementation in `/modules`
-3. Testing in `/tests`
-4. Documentation in `/docs`
+4. **Testing**
+   - Test each phase independently
+   - Verify phase interactions
+   - Test error conditions
+   - Maintain test coverage

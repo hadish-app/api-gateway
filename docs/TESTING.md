@@ -1,132 +1,229 @@
-# Testing Documentation
+# Testing Guide
 
 ## Overview
 
-The API Gateway implements a comprehensive testing framework built on Lua and integrated with nginx. This document outlines the testing architecture, methodologies, and best practices for maintaining and extending the test suite.
+The API Gateway testing suite follows a standardized structure using a template-based approach. Each test file follows a consistent pattern that includes setup, test cases, and cleanup phases.
 
-## Table of Contents
-
-1. [Testing Architecture](#testing-architecture)
-2. [Directory Structure](#directory-structure)
-3. [Test Types](#test-types)
-4. [Writing Tests](#writing-tests)
-5. [Running Tests](#running-tests)
-6. [Test Utilities](#test-utilities)
-7. [Best Practices](#best-practices)
-8. [Continuous Integration](#continuous-integration)
-
-## Testing Architecture
-
-The testing framework is built on these core principles:
-
-- Modular test organization
-- HTTP-accessible test endpoints
-- Automated test execution
-- Detailed reporting and logging
-- Independent test isolation
-
-### Core Components
-
-1. **Test Runner**: Built-in HTTP endpoints for test execution
-2. **Assertion Framework**: Comprehensive assertion utilities
-3. **Reporting System**: Colored output with detailed failure information
-4. **Suite Management**: Test grouping and batch execution
-
-## Directory Structure
+## Test Structure
 
 ```
-/tests
-├── README.md                 # Testing overview and quick start
-├── core/                     # Core testing framework
-│   └── test_utils.lua       # Testing utilities and assertions
-├── modules/                  # Module-specific tests
-│   ├── core/                # Core module tests
-│   │   ├── config_init_test.lua
-│   │   └── middleware_chain_test.lua
-│   ├── middleware/          # Middleware tests
-│   │   └── request_id_test.lua
-│   └── utils/               # Utility module tests
-│       └── env_test.lua
+tests/
+├── core/                     # Core functionality tests
+│   └── test_utils.lua       # Testing utilities
+├── modules/                 # Module tests
+│   └── middleware/         # Middleware tests
+├── template_test.lua       # Test template file
+└── README.md              # Testing documentation
 ```
 
-## Test Types
+## Test Template
 
-### 1. Module Tests
-
-- Test individual module functionality
-- Located in `/tests/modules/{module_name}/`
-- One test file per module or major function
-- Naming convention: `{module_name}_test.lua`
-
-### 2. Middleware Tests
-
-- Test middleware functionality and chain integration
-- Located in `/tests/modules/middleware/`
-- Test both standalone and chain behavior
-- Include state management and configuration tests
-
-### 3. Integration Tests
-
-- Test interaction between modules
-- Verify end-to-end workflows
-- Located in module-specific directories
-- Focus on API contracts and interfaces
-
-## Writing Tests
-
-### Test File Structure
+Each test file follows this template structure:
 
 ```lua
+-- 1. Requires
 local test_utils = require "tests.core.test_utils"
 
+-- 2. Local helper functions
+local function setup_test_environment()
+    -- Reset state
+    test_utils.reset_state()
+    -- Add any other setup needed
+end
+
+-- 3. Module definition
 local _M = {}
 
+-- 4. Test setup (optional)
+function _M.before_all()
+    -- Run once before all tests
+end
+
+function _M.before_each()
+    -- Run before each test
+    setup_test_environment()
+end
+
+-- 5. Test cases
 _M.tests = {
     {
-        name = "Test case description",
+        name = "Test: Description of test case",
         func = function()
             -- Test implementation
-            test_utils.assert_equals(expected, actual, "Assert message")
         end
     }
 }
 
+-- 6. Test cleanup (optional)
+function _M.after_each()
+    -- Run after each test
+end
+
+function _M.after_all()
+    -- Run once after all tests
+end
+
 return _M
 ```
 
-### Middleware Test Example
+## Test Categories
+
+### 1. Core Tests
+
+Tests for core functionality including:
+
+- Phase handlers
+- Middleware chain
+- Utility functions
+- State management
 
 ```lua
--- Request ID middleware test
+-- Example core test
+local tests = {
+    {
+        name = "Test: State management",
+        func = function()
+            test_utils.reset_state()
+            -- Test implementation
+            test_utils.assert_state("expected_state")
+        end
+    }
+}
+```
+
+### 2. Middleware Tests
+
+Tests for middleware components:
+
+- Registry functionality
+- Individual middleware behavior
+- Phase interactions
+- Error handling
+
+```lua
+-- Example middleware test
+local tests = {
+    {
+        name = "Test: Middleware registration",
+        func = function()
+            local registry = require "modules.middleware.registry"
+            -- Test implementation
+            test_utils.assert_true(result)
+        end
+    }
+}
+```
+
+## Test Utilities
+
+The `test_utils.lua` module provides common testing functions:
+
+```lua
+local test_utils = {
+    reset_state = function()
+        -- Reset test state
+        ngx.ctx = {}
+        -- Reset other state as needed
+    end,
+
+    assert_true = function(value, message)
+        assert(value == true, message or "Expected true value")
+    end,
+
+    assert_equals = function(actual, expected, message)
+        assert(actual == expected,
+               message or string.format("Expected %s but got %s",
+                                      tostring(expected),
+                                      tostring(actual)))
+    end
+}
+```
+
+## Running Tests
+
+### Individual Tests
+
+```bash
+# Run a specific test file
+curl http://localhost:8080/test/modules/middleware/request_id_test
+```
+
+### Test Suite
+
+```bash
+# Run all tests
+curl http://localhost:8080/test/run_all
+```
+
+## Best Practices
+
+1. **Test Organization**:
+
+   - Use descriptive test names
+   - Group related tests
+   - Follow template structure
+   - Keep tests focused
+
+2. **Test Setup**:
+
+   - Reset state between tests
+   - Use `before_each` for common setup
+   - Clean up after tests
+   - Isolate test cases
+
+3. **Assertions**:
+
+   - Use descriptive messages
+   - Test edge cases
+   - Verify state changes
+   - Check error conditions
+
+4. **Error Handling**:
+   - Test error scenarios
+   - Verify error messages
+   - Check error propagation
+   - Test recovery paths
+
+## Example: Complete Test Case
+
+```lua
+-- Test suite for request ID middleware
 local test_utils = require "tests.core.test_utils"
-local middleware_chain = require "modules.core.middleware_chain"
-local middleware_registry = require "modules.middleware.registry"
+local request_id = require "modules.middleware.request_id"
 
 local _M = {}
 
--- Reset state before each test
-local function reset_state()
-    middleware_chain.reset()
-    ngx.ctx = {}
-    ngx.header = {}
-
-    -- Re-register middleware
-    middleware_registry.register()
+function _M.before_each()
+    test_utils.reset_state()
 end
 
 _M.tests = {
     {
         name = "Test: Request ID generation",
         func = function()
-            reset_state()
+            -- Setup
+            ngx.ctx = {}
 
-            -- Run middleware chain
-            local result = middleware_chain.run("/")
+            -- Execute
+            local result = request_id.access:handle()
 
             -- Verify
-            test_utils.assert_equals(true, result)
+            test_utils.assert_true(result)
             test_utils.assert_not_nil(ngx.ctx.request_id)
-            test_utils.assert_not_nil(ngx.header["X-Request-ID"])
+        end
+    },
+    {
+        name = "Test: Request ID header propagation",
+        func = function()
+            -- Setup
+            ngx.ctx.request_id = "test-id"
+
+            -- Execute
+            local result = request_id.header_filter:handle()
+
+            -- Verify
+            test_utils.assert_true(result)
+            test_utils.assert_equals(ngx.header["X-Request-ID"], "test-id")
         end
     }
 }
@@ -134,155 +231,32 @@ _M.tests = {
 return _M
 ```
 
-### Assertion Functions
+## Debugging Tests
 
-```lua
--- Basic equality assertion
-test_utils.assert_equals(expected, actual, "Assert message")
+1. **Logging**:
 
--- Example usage
-test_utils.assert_equals(200, response.status, "Should return 200 OK")
-```
+   ```lua
+   test_utils.log_debug("Test state: ", require("cjson").encode(ngx.ctx))
+   ```
 
-## Running Tests
+2. **State Inspection**:
 
-### Via HTTP Endpoints
+   ```lua
+   test_utils.dump_state = function()
+       -- Log current test state
+       ngx.log(ngx.DEBUG, "Test phase: ", ngx.get_phase())
+       ngx.log(ngx.DEBUG, "Context: ", require("cjson").encode(ngx.ctx))
+   end
+   ```
 
-```bash
-# Run specific module test
-curl http://localhost:8080/test/modules/core/config_test
-
-# Run all tests in a module
-curl http://localhost:8080/test/modules/core
-```
-
-### Test Output
-
-```
-Running config_test tests...
-
-Test initialization with valid config
-✓ Config loaded successfully
-✓ Required fields present
-
-Test initialization with invalid config
-✓ Error handled properly
-
-Results: 3 passed, 0 failed
-```
-
-## Test Utilities
-
-The `test_utils.lua` module provides core testing functionality:
-
-### Key Features
-
-1. **Assertion Functions**
-
-   - Equality checking
-   - Type validation
-   - Error handling
-
-2. **Suite Management**
-
-   - Test grouping
-   - Setup and teardown
-   - Result aggregation
-
-3. **Reporting**
-   - Colored output
-   - Detailed error messages
-   - Statistics summary
-
-## Best Practices
-
-1. **Test Organization**
-
-   - One test file per module/function
-   - Clear, descriptive test names
-   - Logical test grouping
-
-2. **Test Independence**
-
-   - Each test should be self-contained
-   - Clean up after each test
-   - No dependencies between tests
-
-3. **Test Coverage**
-
-   - Test both success and failure cases
-   - Include edge cases
-   - Test configuration variations
-
-4. **Code Quality**
-
-   - Keep tests simple and focused
-   - Use descriptive variable names
-   - Comment complex test logic
-
-5. **Maintenance**
-   - Update tests when modifying code
-   - Remove obsolete tests
-   - Keep documentation current
-
-## Continuous Integration
-
-### Test Execution
-
-Tests are automatically run:
-
-1. On every commit
-2. During deployment
-3. In nightly builds
-
-### Test Requirements
-
-- All tests must pass before deployment
-- New features require test coverage
-- Failed tests block merges
-
-### Monitoring
-
-- Test results are logged
-- Failures trigger notifications
-- Coverage reports generated
-
-## Extending the Framework
-
-### Adding New Test Types
-
-1. Create new test directory
-2. Implement test utilities if needed
-3. Update documentation
-4. Add CI configuration
-
-### Custom Assertions
-
-```lua
--- Example custom assertion
-function test_utils.assert_response_valid(response)
-    test_utils.assert_equals(200, response.status)
-    test_utils.assert_equals("application/json", response.headers["Content-Type"])
-end
-```
-
-## Troubleshooting
-
-### Common Issues
-
-1. **Failed Tests**
-
-   - Check test dependencies
-   - Verify test environment
-   - Review recent changes
-
-2. **Slow Tests**
-   - Optimize test setup
-   - Run tests in parallel
-   - Profile test execution
-
-### Getting Help
-
-- Review test logs
-- Check documentation
-- Contact development team
+3. **Error Tracking**:
+   ```lua
+   test_utils.track_errors = function(f)
+       local ok, err = pcall(f)
+       if not ok then
+           ngx.log(ngx.ERR, "Test error: ", err)
+           return false, err
+       end
+       return true
+   end
+   ```
