@@ -31,13 +31,23 @@ local function validate_middleware(handler, name)
         error("Middleware must have a handle function")
     end
     
+    if not (name or handler.name) then
+        error("Middleware name is required")
+    end
+
+    handler.name = name or handler.name
+
     -- Set defaults if not provided
-    handler.name = name or handler.name or "unnamed_middleware"
-    handler.priority = handler.priority or 100
     handler.state = handler.state or STATES.DISABLED
     handler.routes = handler.routes or {}  -- Empty means global
+    handler.phase = handler.phase or "content"  -- Default to content phase
     
-    ngx.log(ngx.DEBUG, "Validated middleware: ", name, ", state: ", handler.state)
+    -- Priority will be set by registry if not provided
+    if handler.priority then
+        handler.priority = handler.priority
+    end
+    
+    ngx.log(ngx.DEBUG, "Validated middleware: ", name, ", state: ", handler.state, ", phase: ", handler.phase)
 end
 
 -- Add middleware
@@ -127,27 +137,24 @@ function _M.set_state(name, state)
 end
 
 -- Get middleware chain for a specific route
-function _M.get_chain(route)
+function _M.get_chain(route, phase)
     local chain = {}
+    phase = phase or "content"  -- Default to content phase
     
-    -- Add global middleware
+    -- Add global middleware for the specified phase
     for _, m in ipairs(global_middleware) do
-        if m.state == STATES.ACTIVE then
+        if m.state == STATES.ACTIVE and m.phase == phase then
             table.insert(chain, m)
-            ngx.log(ngx.DEBUG, "Added active global middleware to chain: ", m.name)
-        else
-            ngx.log(ngx.DEBUG, "Skipped inactive global middleware: ", m.name)
+            ngx.log(ngx.DEBUG, "Added active global middleware to chain: ", m.name, " for phase: ", phase)
         end
     end
     
-    -- Add route-specific middleware
+    -- Add route-specific middleware for the specified phase
     if route and route_middleware[route] then
         for _, m in ipairs(route_middleware[route]) do
-            if m.state == STATES.ACTIVE then
+            if m.state == STATES.ACTIVE and m.phase == phase then
                 table.insert(chain, m)
-                ngx.log(ngx.DEBUG, "Added active route middleware to chain: ", m.name, " for route: ", route)
-            else
-                ngx.log(ngx.DEBUG, "Skipped inactive route middleware: ", m.name, " for route: ", route)
+                ngx.log(ngx.DEBUG, "Added active route middleware to chain: ", m.name, " for route: ", route, " and phase: ", phase)
             end
         end
     end
@@ -156,9 +163,9 @@ function _M.get_chain(route)
 end
 
 -- Execute middleware chain for a route
-function _M.run(route)
-    local chain = _M.get_chain(route)
-    ngx.log(ngx.DEBUG, "Running middleware chain for route: ", route, ", chain length: ", #chain)
+function _M.run(route, phase)
+    local chain = _M.get_chain(route, phase)
+    ngx.log(ngx.DEBUG, "Running middleware chain for route: ", route, ", phase: ", phase, ", chain length: ", #chain)
     
     for _, middleware in ipairs(chain) do
         -- Skip disabled middleware
@@ -211,13 +218,42 @@ function _M.reset()
 end
 
 -- Execute middleware chain for a route with error handling
-function _M.run_chain()
+function _M.run_chain(phase)
+    local uri = ngx.var.uri
+    local chain = _M.get_chain(uri, phase)
+    
     local ok, err = pcall(function()
-        return _M.run(ngx.var.uri)
+        for _, middleware in ipairs(chain) do
+            -- Skip disabled middleware
+            if middleware.state ~= STATES.ACTIVE then
+                ngx.log(ngx.DEBUG, "Skipping disabled middleware: ", middleware.name)
+                goto continue
+            end
+            
+            ngx.log(ngx.DEBUG, "Executing middleware: ", middleware.name)
+            
+            -- Execute with error handling
+            local ok, result = pcall(function() return middleware:handle() end)
+            if not ok then
+                ngx.log(ngx.ERR, "Middleware error in ", middleware.name, ": ", result)
+                error("Middleware " .. middleware.name .. " failed: " .. tostring(result))
+            end
+            
+            -- If handler returns false, stop the chain
+            if result == false then
+                ngx.log(ngx.DEBUG, "Middleware chain stopped by: ", middleware.name)
+                return false
+            end
+            
+            ::continue::
+        end
+        
+        ngx.log(ngx.DEBUG, "Middleware chain completed successfully")
+        return true
     end)
     
     if not ok then
-        ngx.log(ngx.ERR, "Middleware chain error: ", err)
+        ngx.log(ngx.ERR, "Middleware chain error in phase ", phase, ": ", err)
         ngx.status = 500
         ngx.say("Internal Server Error")
         return ngx.exit(ngx.HTTP_INTERNAL_SERVER_ERROR)
