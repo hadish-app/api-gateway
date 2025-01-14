@@ -140,6 +140,23 @@ local function handle_log(self)
         return true
     end
     
+    -- Check for header tampering
+    local existing_header = ngx.header["X-Request-ID"]
+    if existing_header then
+        if existing_header ~= request_id then
+            ngx.log(ngx.WARN, "Request ID middleware: Detected header tampering attempt in log phase. ",
+                "Context ID: ", request_id,
+                " Header ID: ", existing_header,
+                " Client IP: ", ngx.var.remote_addr,
+                " User Agent: ", ngx.var.http_user_agent,
+                " Request Method: ", ngx.req.get_method(),
+                " URI: ", ngx.var.request_uri,
+                " Host: ", ngx.var.host)
+        end
+    else
+        ngx.log(ngx.WARN, "Request ID middleware: Missing X-Request-ID header in log phase. Context ID: ", request_id)
+    end
+    
     -- Log request completion
     ngx.log(ngx.INFO, "Request completed with ID: ", request_id)
     
