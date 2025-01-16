@@ -150,27 +150,38 @@ local function handle_header_filter()
     
     local origin = validators.sanitize_header(cors_ctx.origin)
     
-    -- Set CORS response headers using cached values
-    ngx.header["Access-Control-Allow-Origin"] = origin
-    
-    if config.current.allow_credentials then
-        ngx.header["Access-Control-Allow-Credentials"] = "true"
-    end
-    
-    if config.cache.expose_headers_str then
-        ngx.header["Access-Control-Expose-Headers"] = config.cache.expose_headers_str
-    end
-    
-    -- Set Vary header
-    local vary = "Origin, Access-Control-Request-Method, Access-Control-Request-Headers"
-    if ngx.header["Vary"] then
-        ngx.header["Vary"] = ngx.header["Vary"] .. ", " .. vary
+    -- Only set CORS headers if the origin is allowed
+    if validators.is_origin_allowed(origin, config.current.allow_origins) then
+        -- Set CORS response headers using cached values
+        ngx.header["Access-Control-Allow-Origin"] = origin
+        
+        if config.current.allow_credentials then
+            ngx.header["Access-Control-Allow-Credentials"] = "true"
+        end
+        
+        if config.cache.expose_headers_str then
+            ngx.header["Access-Control-Expose-Headers"] = config.cache.expose_headers_str
+        end
+        
+        -- Set Vary header
+        local vary = "Origin, Access-Control-Request-Method, Access-Control-Request-Headers"
+        if ngx.header["Vary"] then
+            ngx.header["Vary"] = ngx.header["Vary"] .. ", " .. vary
+        else
+            ngx.header["Vary"] = vary
+        end
+        
+        ngx.log(ngx.DEBUG, string.format("[cors] Header filter completed. vary=%s. %s", ngx.header["Vary"], ctx))
+        return true
     else
-        ngx.header["Vary"] = vary
+        ngx.log(ngx.WARN, string.format("[cors] Origin not allowed in header filter: %s. %s", origin, ctx))
+        ngx.log(ngx.ERR, validators.format_cors_error("Origin not allowed", origin))
+        ngx.status = ngx.HTTP_FORBIDDEN
+        ngx.header.content_type = "text/plain"
+        ngx.header.content_length = 0
+        ngx.exit(ngx.HTTP_FORBIDDEN)
+        return false
     end
-    
-    ngx.log(ngx.DEBUG, string.format("[cors] Header filter completed. vary=%s. %s", ngx.header["Vary"], ctx))
-    return true
 end
 
 local function handle_log()
