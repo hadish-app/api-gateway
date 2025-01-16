@@ -33,6 +33,22 @@ local REGISTRY = {
                 priority = 10  -- Keep same priority in log phase
             }
         }
+    },
+    cors = {
+        module = "modules.middleware.cors.init",
+        state = middleware_chain.STATES.ACTIVE,
+        multi_phase = true,
+        phases = {
+            access = {
+                priority = 20  -- Run after request_id but before other middleware
+            },
+            header_filter = {
+                priority = 20  -- Keep same priority in header filter
+            },
+            log = {
+                priority = 20  -- Keep same priority in log phase
+            }
+        }
     }
 }
 

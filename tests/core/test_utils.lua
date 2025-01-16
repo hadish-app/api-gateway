@@ -124,6 +124,25 @@ function _M.assert_table_equals(expected, actual, message)
     end
 end
 
+-- String pattern matching assertion
+function _M.assert_matches(value, pattern, message)
+    if type(value) ~= "string" then
+        ngx.say(_M.COLORS.RED .. "✗" .. _M.COLORS.RESET .. " " .. message)
+        ngx.say("  Expected a string but got: " .. type(value))
+        return false
+    end
+    
+    if string.match(value, pattern) then
+        ngx.say(_M.COLORS.GREEN .. "✓" .. _M.COLORS.RESET .. " " .. message)
+        return true
+    else
+        ngx.say(_M.COLORS.RED .. "✗" .. _M.COLORS.RESET .. " " .. message)
+        ngx.say("  Expected string matching pattern: " .. pattern)
+        ngx.say("  Got: " .. value)
+        return false
+    end
+end
+
 -- Test suite runner
 function _M.run_suite(test_path, tests)
     ngx.say(_M.COLORS.YELLOW .. "\nRunning test suite: " .. test_path .. _M.COLORS.RESET)
