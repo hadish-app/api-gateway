@@ -196,6 +196,41 @@ function _M.configure(user_config)
     return _M.current
 end
 
+function _M.update_config(user_config)
+    ngx.log(ngx.INFO, string.format("[cors] CORS update started | Current=%s | Updates=%s",
+        cjson.encode(_M.current),
+        user_config and cjson.encode(user_config) or "none"
+    ))
+
+    if not user_config then
+        return _M.current
+    end
+
+    -- Merge user config with current config
+    local merged_config = utils.deep_clone(_M.current)
+    for k, v in pairs(user_config) do
+        merged_config[k] = v
+    end
+
+    -- Validate merged configuration
+    local validated, err = validate_config(merged_config)
+    if not validated then
+        error("Failed to validate CORS config update: " .. err)
+    end
+
+    -- Update current configuration
+    _M.current = utils.deep_clone(validated)
+
+    -- Update cache
+    update_cache(_M.current)
+
+    -- Log changes
+    local changes = utils.diff_configs(_M.current, merged_config)
+    ngx.log(ngx.INFO, string.format("[cors] CORS update completed | Status=Success | Changes=%s", changes))
+
+    return _M.current
+end
+
 -- Initialize cache with default config
 ngx.log(ngx.INFO, string.format("[cors] CORS initialization started | Source=Default configuration from constants | Config=%s", cjson.encode(constants.DEFAULT_CONFIG)))
 
