@@ -54,7 +54,7 @@ local function register_middleware(name, config)
                 ", enabled: ", tostring(middleware.enabled))
             
             middleware_chain.use(middleware, middleware.name)
-            middleware_chain.set_state(middleware.name, middleware.enabled and middleware_chain.STATES.ACTIVE or middleware_chain.STATES.DISABLED)
+            middleware_chain.set_state(middleware.name, middleware.enabled)
         end
     else
         -- Handle single-phase middleware (existing logic)
@@ -70,7 +70,7 @@ local function register_middleware(name, config)
         middleware.phase = config.phase
         middleware.enabled = config.enabled or false
         middleware_chain.use(middleware, middleware.name)
-        middleware_chain.set_state(middleware.name, middleware.enabled and middleware_chain.STATES.ACTIVE or middleware_chain.STATES.DISABLED)
+        middleware_chain.set_state(middleware.name, middleware.enabled)
         
         ngx.log(ngx.DEBUG, "Registry: Registered single-phase middleware: ", name,
             ", priority: ", middleware.priority,

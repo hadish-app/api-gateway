@@ -80,7 +80,7 @@ _M.tests = {
             middleware_chain.use(m1, "m1")
             
             ngx.log(ngx.DEBUG, "Setting m1 state to active")
-            middleware_chain.set_state("m1", middleware_chain.STATES.ACTIVE)
+            middleware_chain.set_state("m1", true)
             
             -- Run chain
             ngx.log(ngx.DEBUG, "Running middleware chain")
@@ -100,7 +100,7 @@ _M.tests = {
             
             -- Disable m1
             ngx.log(ngx.DEBUG, "Disabling m1")
-            middleware_chain.set_state("m1", middleware_chain.STATES.DISABLED)
+            middleware_chain.set_state("m1", false)
             
             -- Run chain with disabled middleware
             ngx.log(ngx.DEBUG, "Running middleware chain with disabled m1")
@@ -112,7 +112,7 @@ _M.tests = {
 
             -- Enable m1
             ngx.log(ngx.DEBUG, "Enabling m1")
-            middleware_chain.set_state("m1", middleware_chain.STATES.ACTIVE)
+            middleware_chain.set_state("m1", true)
             
             -- Run chain again with enabled middleware
             ngx.log(ngx.DEBUG, "Running middleware chain with enabled m1")
@@ -148,11 +148,11 @@ _M.tests = {
             middleware_chain.use(m5, "m5") -- Priority 40
             
             -- Activate all middleware
-            middleware_chain.set_state("m1", middleware_chain.STATES.ACTIVE)
-            middleware_chain.set_state("m2", middleware_chain.STATES.ACTIVE)
-            middleware_chain.set_state("m3", middleware_chain.STATES.ACTIVE)
-            middleware_chain.set_state("m4", middleware_chain.STATES.ACTIVE)
-            middleware_chain.set_state("m5", middleware_chain.STATES.ACTIVE)
+            middleware_chain.set_state("m1", true)
+            middleware_chain.set_state("m2", true)
+            middleware_chain.set_state("m3", true)
+            middleware_chain.set_state("m4", true)
+            middleware_chain.set_state("m5", true)
             
             -- Run chain
             middleware_chain.run("/")
@@ -184,9 +184,9 @@ _M.tests = {
             middleware_chain.use(api_m, "api")
             
             -- Activate all
-            middleware_chain.set_state("global", middleware_chain.STATES.ACTIVE)
-            middleware_chain.set_state("admin", middleware_chain.STATES.ACTIVE)
-            middleware_chain.set_state("api", middleware_chain.STATES.ACTIVE)
+            middleware_chain.set_state("global", true)
+            middleware_chain.set_state("admin", true)
+            middleware_chain.set_state("api", true)
             
             -- Test admin route
             middleware_chain.run("/admin")
@@ -223,12 +223,12 @@ _M.tests = {
             test_utils.assert_equals(0, m1.execution_count, "Disabled middleware should not execute")
             
             -- Test active state
-            middleware_chain.set_state("m1", middleware_chain.STATES.ACTIVE)
+            middleware_chain.set_state("m1", true)
             middleware_chain.run("/")
             test_utils.assert_equals(1, m1.execution_count, "Active middleware should execute")
             
             -- Test disabling again
-            middleware_chain.set_state("m1", middleware_chain.STATES.DISABLED)
+            middleware_chain.set_state("m1", false)
             middleware_chain.run("/")
             test_utils.assert_equals(1, m1.execution_count, "Disabled middleware should not execute again")
             
@@ -240,19 +240,19 @@ _M.tests = {
             
             -- Test non-existent middleware
             ok, err = pcall(function() 
-                middleware_chain.set_state("non_existent", middleware_chain.STATES.ACTIVE)
+                middleware_chain.set_state("non_existent", true)
             end)
             test_utils.assert_equals(false, ok, "Setting state for non-existent middleware should fail")
             
             -- Test state persistence
-            middleware_chain.set_state("m1", middleware_chain.STATES.ACTIVE)
+            middleware_chain.set_state("m1", true)
             middleware_chain.run("/")
             test_utils.assert_equals(2, m1.execution_count, "State should persist between runs")
             
             -- Test multiple state changes
-            middleware_chain.set_state("m1", middleware_chain.STATES.DISABLED)
-            middleware_chain.set_state("m1", middleware_chain.STATES.ACTIVE)
-            middleware_chain.set_state("m1", middleware_chain.STATES.DISABLED)
+            middleware_chain.set_state("m1", false)
+            middleware_chain.set_state("m1", true)
+            middleware_chain.set_state("m1", false)
             middleware_chain.run("/")
             test_utils.assert_equals(2, m1.execution_count, "Final disabled state should be respected")
             
@@ -271,7 +271,7 @@ _M.tests = {
             local middleware = create_failing_test_middleware(middleware_name, 10)
             
             middleware_chain.use(middleware, middleware_name)
-            middleware_chain.set_state(middleware_name, middleware_chain.STATES.ACTIVE)
+            middleware_chain.set_state(middleware_name, true)
             
             -- Debug log to verify middleware state
             ngx.log(ngx.DEBUG, "Testing middleware ", middleware_name, ", should_fail=", tostring(middleware.should_fail))
@@ -307,9 +307,9 @@ _M.tests = {
             middleware_chain.use(m2, "m2")
             middleware_chain.use(m3, "m3")
             
-            middleware_chain.set_state("m1", middleware_chain.STATES.ACTIVE)
-            middleware_chain.set_state("m2", middleware_chain.STATES.ACTIVE)
-            middleware_chain.set_state("m3", middleware_chain.STATES.ACTIVE)
+            middleware_chain.set_state("m1", true)
+            middleware_chain.set_state("m2", true)
+            middleware_chain.set_state("m3", true)
             
             -- Run chain
             local result = middleware_chain.run("/")

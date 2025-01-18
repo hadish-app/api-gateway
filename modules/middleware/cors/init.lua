@@ -18,7 +18,7 @@ end
 local access_middleware = {
     name = "cors_access",
     routes = {},    -- Global middleware
-    state = middleware_chain.STATES.ACTIVE,
+    enabled = true,
     phase = "access",
     handle = handlers.handle_access
 }
@@ -26,7 +26,7 @@ local access_middleware = {
 local header_filter_middleware = {
     name = "cors_header_filter",
     routes = {},    -- Global middleware
-    state = middleware_chain.STATES.ACTIVE,
+    enabled = true,
     phase = "header_filter",
     handle = handlers.handle_header_filter
 }
@@ -34,7 +34,7 @@ local header_filter_middleware = {
 local log_middleware = {
     name = "cors_log",
     routes = {},    -- Global middleware
-    state = middleware_chain.STATES.ACTIVE,
+    enabled = true,
     phase = "log",
     handle = handlers.handle_log
 }

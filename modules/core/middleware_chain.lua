@@ -5,22 +5,6 @@ local _M = {}
 local global_middleware = {}  -- For all routes
 local route_middleware = {}   -- Per-route middleware
 
--- Middleware states
-local STATES = {
-    ACTIVE = "active",
-    DISABLED = "disabled"
-}
-
--- Helper function to validate state
-local function is_valid_state(state)
-    for _, valid_state in pairs(STATES) do
-        if state == valid_state then
-            return true
-        end
-    end
-    return false
-end
-
 -- Helper function to validate middleware
 local function validate_middleware(handler, name)
     if type(handler) ~= "table" then
@@ -37,8 +21,16 @@ local function validate_middleware(handler, name)
 
     handler.name = name or handler.name
 
-    -- Set defaults if not provided
-    handler.state = handler.state or STATES.DISABLED
+    -- Validate and set enabled flag
+    if handler.enabled ~= nil then
+        if type(handler.enabled) ~= "boolean" then
+            ngx.log(ngx.ERR, "Middleware enabled flag must be boolean, got: " .. type(handler.enabled))
+            error("Middleware enabled flag must be boolean, got: " .. type(handler.enabled))
+        end
+    else
+        handler.enabled = false
+    end
+
     handler.routes = handler.routes or {}  -- Empty means global
     handler.phase = handler.phase or "content"  -- Default to content phase
     
@@ -47,10 +39,10 @@ local function validate_middleware(handler, name)
         handler.priority = handler.priority
     end
     
-    ngx.log(ngx.DEBUG, "Validated middleware: ", name, ", state: ", handler.state, ", phase: ", handler.phase)
+    ngx.log(ngx.DEBUG, "Validated middleware: ", name, ", enabled: ", tostring(handler.enabled), ", phase: ", handler.phase)
 end
 
--- Add middleware
+-- Add middleware to the chain
 function _M.use(handler, name)
     validate_middleware(handler, name)
     
@@ -103,16 +95,19 @@ function _M.remove(name)
 end
 
 -- Enable/disable middleware
-function _M.set_state(name, state)
-    if not is_valid_state(state) then
-        error("Invalid state: " .. tostring(state))
+function _M.set_state(name, enabled)
+    -- Validate enabled parameter is boolean
+    if type(enabled) ~= "boolean" then
+        ngx.log(ngx.ERR, "Middleware enabled flag must be boolean, got: " .. type(enabled))
+        error("Middleware enabled flag must be boolean, got: " .. type(enabled))
     end
-    
-    local function update_state(middleware_list)
+
+    local function update_enabled(middleware_list)
         for _, m in ipairs(middleware_list) do
             if m.name == name then
-                m.state = state
-                ngx.log(ngx.DEBUG, "Updated state for middleware: ", name, " to: ", state)
+                -- Set enabled flag, defaulting to false if not present
+                m.enabled = enabled
+                ngx.log(ngx.DEBUG, "Updated enabled status for middleware: ", name, " to: ", tostring(enabled))
                 return true
             end
         end
@@ -120,13 +115,13 @@ function _M.set_state(name, state)
     end
     
     -- Update in global middleware
-    if update_state(global_middleware) then
+    if update_enabled(global_middleware) then
         return true
     end
     
     -- Update in route middleware
     for _, handlers in pairs(route_middleware) do
-        if update_state(handlers) then
+        if update_enabled(handlers) then
             return true
         end
     end
@@ -143,7 +138,7 @@ function _M.get_chain(route, phase)
     
     -- Add global middleware for the specified phase
     for _, m in ipairs(global_middleware) do
-        if m.state == STATES.ACTIVE and m.phase == phase then
+        if m.enabled and m.phase == phase then
             table.insert(chain, m)
             ngx.log(ngx.DEBUG, "Added active global middleware to chain: ", m.name, " for phase: ", phase)
         end
@@ -152,7 +147,7 @@ function _M.get_chain(route, phase)
     -- Add route-specific middleware for the specified phase
     if route and route_middleware[route] then
         for _, m in ipairs(route_middleware[route]) do
-            if m.state == STATES.ACTIVE and m.phase == phase then
+            if m.enabled and m.phase == phase then
                 table.insert(chain, m)
                 ngx.log(ngx.DEBUG, "Added active route middleware to chain: ", m.name, " for route: ", route, " and phase: ", phase)
             end
@@ -169,7 +164,7 @@ function _M.run(route, phase)
     
     for _, middleware in ipairs(chain) do
         -- Skip disabled middleware
-        if middleware.state ~= STATES.ACTIVE then
+        if not middleware.enabled then
             ngx.log(ngx.DEBUG, "Skipping disabled middleware: ", middleware.name)
             goto continue
         end
@@ -225,7 +220,7 @@ function _M.run_chain(phase)
     local ok, err = pcall(function()
         for _, middleware in ipairs(chain) do
             -- Skip disabled middleware
-            if middleware.state ~= STATES.ACTIVE then
+            if not middleware.enabled then
                 ngx.log(ngx.DEBUG, "Skipping disabled middleware: ", middleware.name)
                 goto continue
             end
@@ -266,8 +261,5 @@ function _M.run_chain(phase)
     
     return true
 end
-
--- Export states
-_M.STATES = STATES
 
 return _M
