@@ -12,7 +12,8 @@ local WARN = ngx.WARN
 
 -- Import modules
 local middleware_chain = require("modules.core.middleware_chain")
-local middleware_registry = require("modules.middleware.registry")
+local middleware_registry = require("modules.core.middleware_registry")
+local service_registry = require("modules.core.service_registry")
 
 -- Configuration
 local SHARED_DICTS = {
@@ -108,6 +109,14 @@ function _M.init()
     if not ok then
         log(ERR, "Middleware registration failed: " .. err)
         return nil, "Failed to register middlewares: " .. err
+    end
+    
+    -- Register services
+    ngx.log(ngx.DEBUG, "Registering services")
+    local ok, err = service_registry.register()
+    if not ok then
+        log(ERR, "Service registration failed: " .. err)
+        return nil, "Failed to register services: " .. err
     end
     
     log(INFO, "Initialization phase completed successfully")

@@ -326,7 +326,7 @@ The API Gateway serves as a central entry point for all API requests, providing:
    end
 
    -- 2. Register in registry
-   -- modules/middleware/registry.lua
+   -- modules/core/middleware_registry.lua
    REGISTRY.feature = {
        module = "modules.middleware.feature",
        state = "active",

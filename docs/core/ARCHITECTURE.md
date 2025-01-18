@@ -53,7 +53,7 @@ local STATES = {
 - State management (active/disabled)
 - Error handling with chain interruption
 
-### 3. Middleware Registry (`modules/middleware/registry.lua`)
+### 3. Middleware Registry (`modules/core/middleware_registry.lua`)
 
 Centralizes middleware registration and configuration:
 
@@ -146,95 +146,36 @@ local request_id = ngx.ctx.request_id
 
 ### 2. Shared Dictionaries
 
-For worker-level state:
+For worker-level shared state:
 
 ```lua
--- Required shared dictionaries
-local SHARED_DICTS = {
-    required = {
-        "stats",         -- Runtime statistics
-        "metrics",       -- Performance metrics
-        "config_cache",  -- Configuration cache
-        "rate_limit",    -- Rate limiting
-        "ip_blacklist",  -- IP blocking list
-        "worker_events"  -- Worker events
+-- In nginx.conf
+lua_shared_dict stats 10m;
+lua_shared_dict config_cache 5m;
+
+-- In middleware
+local stats = ngx.shared.stats
+stats:set("total_requests", stats:get("total_requests") + 1)
+```
+
+### 3. Configuration Management
+
+For dynamic configuration:
+
+```lua
+-- In middleware_registry.lua
+local REGISTRY = {
+    multi_phase_example = {
+        module = "modules.middleware.multi_phase_example",
+        state = "active",
+        multi_phase = true,
+        phases = {
+            access = { priority = 10 },
+            header_filter = { priority = 20 }
+        }
     }
 }
 ```
-
-## Extending the System
-
-### 1. Adding New Middleware
-
-1. **Create Middleware Module**:
-
-   ```lua
-   -- modules/middleware/example.lua
-   local _M = {
-       name = "example",
-       phase = "access",
-       priority = 50
-   }
-
-   function _M:handle()
-       -- Implementation
-       return true
-   end
-
-   return _M
-   ```
-
-2. **Register in Registry**:
-   ```lua
-   -- In registry.lua
-   local REGISTRY = {
-       example = {
-           module = "modules.middleware.example",
-           state = "active",
-           priority = 50,
-           phase = "access"
-       }
-   }
-   ```
-
-### 2. Adding Multi-Phase Middleware
-
-1. **Create Multi-Phase Module**:
-
-   ```lua
-   -- modules/middleware/multi_phase_example.lua
-   local _M = {
-       name = "multi_phase_example"
-   }
-
-   function _M.access:handle()
-       -- Access phase logic
-       return true
-   end
-
-   function _M.header_filter:handle()
-       -- Header modification
-       return true
-   end
-
-   return _M
-   ```
-
-2. **Register Multi-Phase Configuration**:
-   ```lua
-   -- In registry.lua
-   local REGISTRY = {
-       multi_phase_example = {
-           module = "modules.middleware.multi_phase_example",
-           state = "active",
-           multi_phase = true,
-           phases = {
-               access = { priority = 10 },
-               header_filter = { priority = 20 }
-           }
-       }
-   }
-   ```
 
 ### 3. Adding New Features
 

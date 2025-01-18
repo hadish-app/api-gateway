@@ -59,7 +59,7 @@ return _M
 ### Single-Phase Registration
 
 ```lua
--- In registry.lua
+-- In middleware_registry.lua
 local REGISTRY = {
     example = {
         module = "modules.middleware.example",
@@ -73,7 +73,7 @@ local REGISTRY = {
 ### Multi-Phase Registration
 
 ```lua
--- In registry.lua
+-- In middleware_registry.lua
 local REGISTRY = {
     multi_phase_example = {
         module = "modules.middleware.multi_phase_example",
@@ -122,17 +122,11 @@ Implement proper error handling:
 function _M:handle()
     local ok, err = pcall(function()
         -- Risky operation
-        local result = some_function()
-
-        if not result then
-            return false, "Operation failed"
-        end
-
-        return true
+        return process_request()
     end)
 
     if not ok then
-        ngx.log(ngx.ERR, "Middleware error: ", err)
+        ngx.log(ngx.ERR, "Error in middleware: " .. err)
         return false
     end
 
@@ -142,40 +136,12 @@ end
 
 ## Testing
 
-### Basic Test Structure
+Create comprehensive tests:
 
 ```lua
 -- tests/modules/middleware/example_test.lua
 local test_utils = require "tests.core.test_utils"
-local example = require "modules.middleware.example"
-
-local _M = {}
-
-_M.tests = {
-    {
-        name = "Test: Basic functionality",
-        func = function()
-            -- Setup
-            ngx.ctx = {}
-
-            -- Execute
-            local result = example:handle()
-
-            -- Verify
-            test_utils.assert_true(result)
-        end
-    }
-}
-
-return _M
-```
-
-### Multi-Phase Testing
-
-```lua
--- tests/modules/middleware/multi_phase_example_test.lua
-local test_utils = require "tests.core.test_utils"
-local middleware = require "modules.middleware.multi_phase_example"
+local middleware = require "modules.middleware.example"
 
 local _M = {}
 
@@ -235,51 +201,71 @@ return _M
 4. **Performance**:
 
    - Minimize shared dictionary access
-   - Use local variables
-   - Cache repeated calculations
+   - Cache frequently used values
+   - Avoid unnecessary string operations
 
-5. **Testing**:
-   - Test each phase independently
-   - Include error cases
-   - Test state management
+5. **Configuration**:
 
-## Example: Complete Middleware
+   - Use configuration tables
+   - Support runtime updates
+   - Validate configuration values
 
-Here's a complete example of a rate limiting middleware:
+6. **Testing**:
+
+   - Write unit tests for each phase
+   - Test error conditions
+   - Mock external dependencies
+
+7. **Documentation**:
+
+   - Document configuration options
+   - Explain phase dependencies
+   - Provide usage examples
+
+8. **Logging**:
+
+   - Use appropriate log levels
+   - Include request context
+   - Log performance metrics
+
+## Example Implementation
+
+Here's a complete example:
 
 ```lua
--- modules/middleware/rate_limit.lua
+-- modules/middleware/example.lua
 local _M = {
-    name = "rate_limit",
+    name = "example",
     phase = "access",
-    priority = 10
+    priority = 50,
+    state = "active",
+    config = {
+        timeout = 1000,
+        max_retries = 3
+    }
 }
 
--- Configuration
-local LIMIT = 100  -- requests per minute
-local WINDOW = 60  -- seconds
-
 function _M:handle()
-    local key = ngx.var.binary_remote_addr
-    local time = ngx.time()
-    local window = math.floor(time / WINDOW)
+    -- Get request context
+    local ctx = {
+        client = ngx.var.remote_addr,
+        method = ngx.req.get_method(),
+        uri = ngx.var.request_uri
+    }
 
-    -- Create window key
-    local dict_key = string.format("%s:%d", key, window)
+    -- Log entry
+    ngx.log(ngx.DEBUG, string.format("[%s] Processing request from %s: %s %s",
+        self.name, ctx.client, ctx.method, ctx.uri))
 
-    -- Get current count
-    local dict = ngx.shared.stats
-    local current = dict:get(dict_key)
+    -- Process with error handling
+    local ok, err = pcall(function()
+        -- Implementation
+        return process_request(ctx)
+    end)
 
-    if current then
-        if current > LIMIT then
-            ngx.log(ngx.WARN, "Rate limit exceeded for ", key)
-            return ngx.exit(429)
-        end
-
-        dict:incr(dict_key, 1)
-    else
-        dict:set(dict_key, 1, WINDOW)
+    if not ok then
+        ngx.log(ngx.ERR, string.format("[%s] Error: %s", self.name, err))
+        return false
     end
 
     return true
@@ -287,14 +273,6 @@ end
 
 return _M
 ```
-
-This example demonstrates:
-
-- Proper error handling
-- Shared dictionary usage
-- Configuration management
-- Logging
-- Request termination when needed
 
 ```
 
