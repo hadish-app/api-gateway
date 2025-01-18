@@ -1,2 +1,0 @@
--- TODO: Proxy requests to the admin service and return the response.
--- The admin service url is defined in the .env file.
