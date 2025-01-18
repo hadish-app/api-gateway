@@ -1,22 +1,40 @@
-local env = require "modules.utils.env"
 local cjson = require "cjson"
 
--- Load environment configuration
-local config = env.load_all()
+-- Get configuration from shared dictionary cache
+local function get_cached_config(section)
+    local config_cache = ngx.shared.config_cache
+    if not config_cache then
+        error("Failed to access config_cache shared dictionary")
+    end
+    
+    local json_str = config_cache:get(section)
+    if not json_str then
+        error("Configuration section not found in cache: " .. section)
+    end
+    
+    local config, err = cjson.decode(json_str)
+    if err then
+        error("Failed to decode cached config: " .. err)
+    end
+    
+    return config
+end
 
-local cors_config = config.cors
+-- Get CORS configuration from cache
+local cors_config = get_cached_config("cors")
+
 -- Log CORS configuration
 ngx.log(ngx.INFO, "[cors] Loading CORS configuration:")
-ngx.log(ngx.INFO, "[cors] allow_origins: " .. (cors_config.allow_origins))
-ngx.log(ngx.INFO, "[cors] allow_methods: " .. (cors_config.allow_methods))
-ngx.log(ngx.INFO, "[cors] allow_headers: " .. (cors_config.allow_headers))
-ngx.log(ngx.INFO, "[cors] expose_headers: " .. (cors_config.expose_headers))
-ngx.log(ngx.INFO, "[cors] max_age: " .. (cors_config.max_age))
+ngx.log(ngx.INFO, "[cors] allow_origins: " .. cors_config.allow_origins)
+ngx.log(ngx.INFO, "[cors] allow_methods: " .. cors_config.allow_methods)
+ngx.log(ngx.INFO, "[cors] allow_headers: " .. cors_config.allow_headers)
+ngx.log(ngx.INFO, "[cors] expose_headers: " .. cors_config.expose_headers)
+ngx.log(ngx.INFO, "[cors] max_age: " .. cors_config.max_age)
 ngx.log(ngx.INFO, "[cors] allow_credentials: " .. tostring(cors_config.allow_credentials))
-ngx.log(ngx.INFO, "[cors] validation_max_origin_length: " .. (cors_config.validation_max_origin_length))
-ngx.log(ngx.INFO, "[cors] validation_max_subdomain_count: " .. (cors_config.validation_max_subdomain_count))
-ngx.log(ngx.INFO, "[cors] validation_max_subdomain_length: " .. (cors_config.validation_max_subdomain_length))
-ngx.log(ngx.INFO, "[cors] common_headers: " .. (cors_config.common_headers))
+ngx.log(ngx.INFO, "[cors] validation_max_origin_length: " .. cors_config.validation_max_origin_length)
+ngx.log(ngx.INFO, "[cors] validation_max_subdomain_count: " .. cors_config.validation_max_subdomain_count)
+ngx.log(ngx.INFO, "[cors] validation_max_subdomain_length: " .. cors_config.validation_max_subdomain_length)
+ngx.log(ngx.INFO, "[cors] common_headers: " .. cors_config.common_headers)
 
 -- Helper function to split comma-separated string into array
 local function split_csv(str)
