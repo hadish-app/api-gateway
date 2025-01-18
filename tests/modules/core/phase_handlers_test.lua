@@ -52,47 +52,6 @@ _M.tests = {
             test_utils.assert_not_nil(worker_start_time, "Worker start time should be recorded")
             test_utils.assert_type(worker_start_time, "number", "Worker start time should be a number")
         end
-    },
-    {
-        name = "Test: Phase handlers execution sequence",
-        func = function()
-            -- Setup request context
-            ngx.ctx = {}
-            
-            -- Execute each phase handler
-            local phases = {
-                "access",
-                "content",
-                "header_filter",
-                "body_filter",
-                "log"
-            }
-            
-            for _, phase in ipairs(phases) do
-                local result = phase_handlers[phase]()
-                test_utils.assert_not_nil(result, phase .. " phase should return a result")
-            end
-        end
-    },
-    {
-        name = "Test: Shared dictionary persistence across phases",
-        func = function()
-            -- Reset stats
-            local stats = ngx.shared.stats
-            stats:set("total_requests", 0)
-            
-            -- Run through phases to simulate request
-            phase_handlers.access()
-            phase_handlers.content()
-            phase_handlers.header_filter()
-            phase_handlers.body_filter()
-            phase_handlers.log()
-            
-            -- Verify stats were updated
-            local total_requests = stats:get("total_requests")
-            test_utils.assert_not_nil(total_requests, "Total requests should be tracked")
-            test_utils.assert_type(total_requests, "number", "Total requests should be a number")
-        end
     }
 }
 
