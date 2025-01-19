@@ -7,7 +7,7 @@ local function get_request_context()
     return string.format(
         "client=%s request_id=%s method=%s uri=%s",
         ngx.var.remote_addr,
-        ngx.var.request_id or "none",
+        ngx.ctx.request_id or "none",
         ngx.req.get_method(),
         ngx.var.request_uri
     )
