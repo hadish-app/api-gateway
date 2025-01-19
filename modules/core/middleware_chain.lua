@@ -187,7 +187,7 @@ function _M.run(route, phase)
         ::continue::
     end
     
-    ngx.log(ngx.DEBUG, "Middleware chain completed successfully")
+    ngx.log(ngx.DEBUG, "Middleware chain completed successfully for phase: ", phase)
     return true
 end
 
@@ -216,7 +216,8 @@ end
 function _M.run_chain(phase)
     local uri = ngx.var.uri
     local chain = _M.get_chain(uri, phase)
-    
+    ngx.log(ngx.DEBUG, "Middleware chain for phase: ", phase, " chain length: ", #chain)
+
     local ok, err = pcall(function()
         for _, middleware in ipairs(chain) do
             -- Skip disabled middleware
@@ -225,7 +226,7 @@ function _M.run_chain(phase)
                 goto continue
             end
             
-            ngx.log(ngx.DEBUG, "Executing middleware: ", middleware.name)
+            ngx.log(ngx.DEBUG, "Executing middleware: ", middleware.name, " for phase: ", phase)
             
             -- Execute with error handling
             local ok, result = pcall(function() return middleware:handle() end)
@@ -243,7 +244,7 @@ function _M.run_chain(phase)
             ::continue::
         end
         
-        ngx.log(ngx.DEBUG, "Middleware chain completed successfully")
+        ngx.log(ngx.DEBUG, "Middleware chain completed successfully for phase: ", phase)
         return true
     end)
     

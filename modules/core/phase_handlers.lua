@@ -4,11 +4,7 @@ local _M = {}
 local ngx = ngx
 local shared = ngx.shared
 local timer_every = ngx.timer.every
-local log = ngx.log
-local INFO = ngx.INFO
-local ERR = ngx.ERR
-local DEBUG = ngx.DEBUG
-local WARN = ngx.WARN
+
 
 -- Import modules
 local middleware_chain = require("modules.core.middleware_chain")
@@ -37,7 +33,7 @@ local SHARED_DICTS = {
 
 -- Helper Functions
 local function log_worker_state(worker_id, message)
-    log(DEBUG, string.format("Worker %d %s - PID: %d, Memory: %.2fKB", 
+    ngx.log(ngx.DEBUG, string.format("Worker %d %s - PID: %d, Memory: %.2fKB", 
         worker_id, 
         message,
         ngx.worker.pid(),
@@ -46,7 +42,7 @@ local function log_worker_state(worker_id, message)
 end
 
 local function log_shared_dict_state(stats, state_type)
-    log(DEBUG, string.format("Shared dict 'stats' %s state - Free: %d, Capacity: %d, Keys: %d",
+    ngx.log(ngx.DEBUG, string.format("Shared dict 'stats' %s state - Free: %d, Capacity: %d, Keys: %d",
         state_type,
         stats:free_space(),
         stats:capacity(),
@@ -56,21 +52,21 @@ end
 
 -- Core Initialization Functions
 local function verify_shared_dicts()
-    log(INFO, "Starting shared dictionary verification...")
+    ngx.log(ngx.DEBUG, "Starting shared dictionary verification...")
     
     -- List all available shared dictionaries
     local available_dicts = {}
     for dict_name, _ in pairs(shared) do
         available_dicts[dict_name] = true
-        log(DEBUG, "Found shared dictionary: " .. dict_name)
+        ngx.log(ngx.DEBUG, "Found shared dictionary: " .. dict_name)
     end
     
     for _, dict_name in ipairs(SHARED_DICTS.required) do
         if not shared[dict_name] then
-            log(ERR, "Required shared dictionary not found: " .. dict_name)
+            ngx.log(ngx.ERR, "Required shared dictionary not found: " .. dict_name)
             return false
         end
-        log(INFO, "Verified shared dictionary: " .. dict_name)
+        ngx.log(ngx.DEBUG, "Verified shared dictionary: " .. dict_name)
     end
     return true
 end
@@ -101,7 +97,7 @@ local function init_shared_states()
     end)
 
     if not ok then
-        log(ERR, "Failed to initialize shared states: " .. err)
+        ngx.log(ngx.ERR, "Failed to initialize shared states: " .. err)
         return nil, err
     end
 
@@ -109,7 +105,7 @@ local function init_shared_states()
 end
 
 local function init_config_cache()
-    ngx.log(ngx.INFO, "Initializing configuration cache...")
+    ngx.log(ngx.DEBUG, "Initializing configuration cache...")
     
     -- Load all environment variables
     local config = env.load_all()
@@ -136,13 +132,13 @@ local function init_config_cache()
         ngx.log(ngx.DEBUG, "Cached config section: ", section)
     end
     
-    ngx.log(ngx.INFO, "Configuration cache initialized successfully")
+    ngx.log(ngx.DEBUG, "Configuration cache initialized successfully")
     return true
 end
 
 -- Phase Handler Functions
 function _M.init()
-    log(INFO, "Starting initialization phase...")
+    ngx.log(ngx.DEBUG, "Starting initialization phase...")
     
     local ok, err
     
@@ -158,36 +154,36 @@ function _M.init()
     
     ok, err = init_config_cache()
     if not ok then
-        log(ERR, "Failed to initialize configuration cache")
+        ngx.log(ngx.ERR, "Failed to initialize configuration cache")
         return false
     end
     
     -- Register components
     ok, err = middleware_registry.register()
     if not ok then
-        log(ERR, "Failed to register middlewares: ", err)
+        ngx.log(ngx.ERR, "Failed to register middlewares: ", err)
         return false
     end
     
     ok, err = service_registry.register()
     if not ok then
-        log(ERR, "Failed to register services: ", err)
+        ngx.log(ngx.ERR, "Failed to register services: ", err)
         return false
     end
     
-    log(INFO, "Initialization phase completed successfully")
+    ngx.log(ngx.DEBUG, "Initialization phase completed successfully")
     return true
 end
 
 function _M.init_worker()
-    log(INFO, "Starting worker initialization phase...")
+    ngx.log(ngx.DEBUG, "Starting worker initialization phase...")
     
     local worker_id = ngx.worker.id()
     local worker_pid = ngx.worker.pid()
     local stats = shared.stats
     
     if not stats then
-        log(ERR, "Stats dictionary not available during worker initialization")
+        ngx.log(ngx.ERR, "Stats dictionary not available during worker initialization")
         return nil, "Stats dictionary not available"
     end
     
@@ -203,44 +199,44 @@ function _M.init_worker()
     if not success then
         if err == "exists" then
             local existing = stats:get(worker_key)
-            log(DEBUG, string.format("Worker %d start time already set to %.6f", worker_id, existing))
+            ngx.log(ngx.DEBUG, string.format("Worker %d start time already set to %.6f", worker_id, existing))
         else
-            log(ERR, "Failed to store worker start time: " .. (err or "unknown error"))
+            ngx.log(ngx.ERR, "Failed to store worker start time: " .. (err or "unknown error"))
             return nil, "Failed to store worker start time"
         end
     else
-        log(INFO, string.format("Stored start time for worker %d (PID: %d): %.6f", 
+        ngx.log(ngx.DEBUG, string.format("Stored start time for worker %d (PID: %d): %.6f", 
             worker_id, worker_pid, start_time))
     end
     
     -- Verify and log final states
     local stored = stats:get(worker_key)
     if stored then
-        log(DEBUG, string.format("Verified worker %d start time: %.6f", worker_id, stored))
+        ngx.log(ngx.DEBUG, string.format("Verified worker %d start time: %.6f", worker_id, stored))
         log_worker_state(worker_id, "final state")
         log_shared_dict_state(stats, "final")
     else
-        log(ERR, string.format("Failed to verify worker %d start time", worker_id))
+        ngx.log(ngx.ERR, string.format("Failed to verify worker %d start time", worker_id))
     end
 
-    log(INFO, "Worker initialization completed successfully")
+    ngx.log(ngx.DEBUG, "Worker initialization completed successfully")
     return true
 end
 
 -- Standard phase handlers
 local function create_phase_handler(phase_name)
     return function()
-        log(DEBUG, string.format("%s phase handler started", phase_name))
-        local result = middleware_chain.run_chain(phase_name:lower())
-        log(DEBUG, string.format("%s phase handler completed", phase_name))
+        ngx.log(ngx.DEBUG, string.format("%s phase handler started", phase_name))
+        local result = middleware_chain.run_chain(phase_name)
+        ngx.log(ngx.DEBUG, string.format("%s phase handler completed", phase_name))
         return result
     end
 end
 
-_M.access = create_phase_handler("Access")
-_M.content = create_phase_handler("Content")
-_M.header_filter = create_phase_handler("Header filter")
-_M.body_filter = create_phase_handler("Body filter")
-_M.log = create_phase_handler("Log")
+_M.access = create_phase_handler("access")
+_M.content = create_phase_handler("content")
+_M.header_filter = create_phase_handler("header_filter")
+_M.body_filter = create_phase_handler("body_filter")
+_M.log = create_phase_handler("log")
 
 return _M 

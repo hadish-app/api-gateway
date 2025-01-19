@@ -59,7 +59,7 @@ end
 
 -- Access phase handler
 local function handle_access(self)
-    ngx.log(ngx.DEBUG, "Request ID middleware: Starting access phase")
+    ngx.log(ngx.DEBUG, "Request ID middleware: [access phase] Starting access phase")
     
     -- Always reseed at the start of each request
     reseed_uuid()
@@ -67,45 +67,61 @@ local function handle_access(self)
     -- Check for incoming request ID
     local headers = ngx.req.get_headers()
     local incoming_id = headers["X-Request-ID"]
-    ngx.log(ngx.DEBUG, "Request ID middleware: Request ID from header: ", incoming_id)
+    ngx.log(ngx.DEBUG, "Request ID middleware: [access phase] Request ID from header: ", incoming_id)
     
     local request_id
     if incoming_id and _M.is_valid_uuid(incoming_id) then
         -- Use valid incoming request ID
         request_id = incoming_id
-        ngx.log(ngx.DEBUG, "Request ID middleware: Using existing request ID: ", request_id)
+        ngx.log(ngx.DEBUG, "Request ID middleware: [access phase] Using existing request ID: ", request_id)
     else
         -- Generate new request ID if none exists or invalid
         if incoming_id then
             ngx.log(ngx.WARN, "Request ID middleware: Invalid request ID format received: ", incoming_id)
         end
         request_id = _M.generate_request_id()
-        ngx.log(ngx.DEBUG, "Request ID middleware: Generated new request ID after invalid input: ", request_id)
+        ngx.log(ngx.DEBUG, "Request ID middleware: [access phase] Generated new request ID after invalid input: ", request_id)
     end
     
     -- Store in context for other phases
     _M.set_request_id(request_id)
-    ngx.log(ngx.DEBUG, "Request ID middleware: Stored request ID in context")
+    ngx.log(ngx.DEBUG, "Request ID middleware: [access phase] Stored request ID in context")
     
+    ngx.log(ngx.DEBUG, "Request ID middleware: [access phase] access phase completed")
     return true
 end
 
 -- Header filter phase handler
 local function handle_header_filter(self)
-    ngx.log(ngx.DEBUG, "Request ID middleware: Starting header filter phase")
-    
-    -- Get request ID from context
-    local request_id = ngx.ctx.request_id
+    ngx.log(ngx.DEBUG, "Request ID middleware: [header filter phase] Starting header filter phase")
+
+    local request_id = _M.get_request_id()
     if not request_id then
-        ngx.log(ngx.WARN, "Request ID middleware: No request ID found in context")
-        return true
+        ngx.log(ngx.ERR, "Request ID middleware: [header filter phase] Critical error - No request ID in context. This should never happen!")
+        -- Log additional debug information
+        ngx.log(ngx.ERR, string.format(
+            "Debug info - Client: %s, Method: %s, URI: %s, Headers: %s",
+            ngx.var.remote_addr,
+            ngx.req.get_method(),
+            ngx.var.request_uri,
+            require("cjson").encode(ngx.req.get_headers())
+        ))
+        ngx.status = ngx.HTTP_INTERNAL_SERVER_ERROR
+        return false  
     end
-    
-    -- Check for header tampering
+
     local existing_header = ngx.header["X-Request-ID"]
     if existing_header then
+        -- Validate existing header format
+        if not _M.is_valid_uuid(existing_header) then
+            ngx.log(ngx.WARN, "Request ID middleware: [header filter phase] Invalid UUID format in response header: ", existing_header)
+            ngx.status = ngx.HTTP_BAD_REQUEST
+            ngx.say("Invalid Request ID Format")
+            return false
+        end
+
         if existing_header ~= request_id then
-            ngx.log(ngx.WARN, "Request ID middleware: Detected header tampering attempt. ",
+            ngx.log(ngx.WARN, "Request ID middleware: [header filter phase] Detected header tampering attempt. ",
                 "Context ID: ", request_id,
                 " Header ID: ", existing_header,
                 " Client IP: ", ngx.var.remote_addr,
@@ -118,33 +134,49 @@ local function handle_header_filter(self)
             return false
         end
         -- Header already set correctly, no need to set it again
+        ngx.log(ngx.DEBUG, "Request ID middleware: [header filter phase] Header already set correctly")
     else
-        -- Missing header when we expect it to exist
-        ngx.log(ngx.DEBUG, "Request ID middleware: Setting response header X-Request-ID in header filter phase. Context ID: ", request_id)
+        -- Set the header if it doesn't exist
+        ngx.log(ngx.DEBUG, "Request ID middleware: [header filter phase] Setting response header X-Request-ID: ", request_id)
         ngx.header["X-Request-ID"] = request_id
+        ngx.log(ngx.DEBUG, "Request ID middleware: [header filter phase] Header set: ", ngx.header["X-Request-ID"])
     end
     
-    ngx.log(ngx.DEBUG, "Request ID middleware: Set response header X-Request-ID: ", request_id)
-    
+    ngx.log(ngx.DEBUG, "Request ID middleware: [header filter phase] header filter phase completed")
     return true
 end
 
 -- Log phase handler
 local function handle_log(self)
-    ngx.log(ngx.DEBUG, "Request ID middleware: Starting log phase")
+    ngx.log(ngx.DEBUG, "Request ID middleware: [log phase] Starting log phase")
     
-    -- Get request ID from context
-    local request_id = ngx.ctx.request_id
+    local request_id = _M.get_request_id()
     if not request_id then
-        ngx.log(ngx.WARN, "Request ID middleware: No request ID found in context")
-        return true
+        ngx.log(ngx.ERR, "Request ID middleware: [header filter phase] Security alert - No request ID in context. This should never happen!")
+        -- Log additional debug information
+        ngx.log(ngx.ERR, string.format(
+            "Debug info - Client: %s, Method: %s, URI: %s, Headers: %s",
+            ngx.var.remote_addr,
+            ngx.req.get_method(),
+            ngx.var.request_uri,
+            require("cjson").encode(ngx.req.get_headers())
+        ))
+        ngx.status = ngx.HTTP_INTERNAL_SERVER_ERROR
+        return false  
     end
-    
-    -- Check for header tampering
+
     local existing_header = ngx.header["X-Request-ID"]
     if existing_header then
+        -- Validate existing header format
+        if not _M.is_valid_uuid(existing_header) then
+            ngx.log(ngx.WARN, "Request ID middleware: [log phase] Security alert - Invalid UUID format in response header: ", existing_header)
+            ngx.status = ngx.HTTP_BAD_REQUEST
+            ngx.say("Invalid Request ID Format")
+            return false
+        end
+
         if existing_header ~= request_id then
-            ngx.log(ngx.WARN, "Request ID middleware: Detected header tampering attempt in log phase. ",
+            ngx.log(ngx.WARN, "Request ID middleware: [log phase] Security alert - Detected header tampering attempt. ",
                 "Context ID: ", request_id,
                 " Header ID: ", existing_header,
                 " Client IP: ", ngx.var.remote_addr,
@@ -152,14 +184,16 @@ local function handle_log(self)
                 " Request Method: ", ngx.req.get_method(),
                 " URI: ", ngx.var.request_uri,
                 " Host: ", ngx.var.host)
+            ngx.status = ngx.HTTP_BAD_REQUEST
+            ngx.say("Invalid Request ID")
+            return false
         end
-    else
-        ngx.log(ngx.WARN, "Request ID middleware: Missing X-Request-ID header in log phase. Context ID: ", request_id)
+        -- Header already set correctly, no need to set it again
+        ngx.log(ngx.DEBUG, "Request ID middleware: [log phase] Header already set correctly")
     end
-    
-    -- Log request completion
-    ngx.log(ngx.INFO, "Request completed with ID: ", request_id)
-    
+
+    ngx.log(ngx.INFO, "Request completed with ID: ", request_id, " while logging request, client: ", ngx.var.remote_addr, ", server: ", ngx.var.server_name, ", request: ", ngx.var.request_uri)
+
     return true
 end
 
