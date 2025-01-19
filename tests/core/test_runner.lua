@@ -37,6 +37,7 @@ function _M.run_all_tests(base_path)
             -- Run cleanup if available
             if test_module.after_all then
                 local cleanup_ok, err = pcall(test_module.after_all)
+                ngx.log(ngx.DEBUG, "Cleanup result: ", cleanup_ok, " - ", err)
                 if not cleanup_ok then
                     ngx.log(ngx.ERR, "Cleanup failed for ", test_path, ": ", err)
                     table.insert(failed_tests, test_path)

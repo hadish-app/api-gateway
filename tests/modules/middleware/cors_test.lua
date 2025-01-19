@@ -2,26 +2,6 @@ local test_utils = require "tests.core.test_utils"
 local cors = require "modules.middleware.cors.init"
 local cjson = require "cjson"
 
--- Mock ngx.exit to track its calls instead of actually exiting
-local original_ngx_exit
-local function setup_test_environment()
-    test_utils.reset_state()
-    ngx.header = {}
-    ngx.ctx = {}
-    
-    -- Store original ngx.exit and replace with mock
-    original_ngx_exit = ngx.exit
-    ngx.exit = function(status)
-        ngx.log(ngx.DEBUG, "ngx.exit called with status: " .. status)
-        ngx.status = status
-        error("ngx.exit(" .. status .. ")", 0)  -- Use error level 0 to track the exit
-    end
-end
-
-local function teardown_test_environment()
-    -- Restore original ngx.exit
-    ngx.exit = original_ngx_exit
-end
 
 local _M = {}
 
@@ -29,10 +9,11 @@ _M.tests = {
     -- Basic functionality test
     {
         name = "Non-CORS request should pass through",
-        func = function()
-            setup_test_environment()
+        func = function()            
+            test_utils.mock.set_headers({})
+            test_utils.mock.set_method("GET")
             local result = cors.access:handle()
-            test_utils.assert_true(result, "Access handler should return true")
+            test_utils.assert_true(result, "Access handler should return true")            
             test_utils.assert_not_nil(ngx.ctx.cors, "CORS context should be set")
             test_utils.assert_equals(ngx.ctx.cors.is_cors, false, "is_cors should be false")
             test_utils.assert_equals(ngx.ctx.cors.is_preflight, false, "is_preflight should be false")
@@ -44,18 +25,13 @@ _M.tests = {
     -- Valid CORS request test
     {
         name = "Valid CORS request should be processed correctly",
-        func = function()
-            setup_test_environment()
-            
+        func = function()            
             -- Setup request with Origin header
-            ngx.req.get_headers = function()
-                return { Origin = "https://example.com" }
-            end
+            test_utils.mock.set_headers({
+                Origin = "https://example.com"
+            })
+            test_utils.mock.set_method("GET")
 
-            ngx.req.get_method = function()
-                return "GET"
-            end
-            
             -- Configure CORS with specific origin
             cors.configure({
                 allow_origins = {"https://example.com"},
@@ -89,16 +65,13 @@ _M.tests = {
     -- Invalid CORS request tests
     {
         name = "CORS request with disallowed origin",
-        func = function()
-            setup_test_environment()
+        func = function()            
             
             -- Setup request with disallowed origin
-            ngx.req.get_headers = function()
-                return { Origin = "https://evil.com" }
-            end
-            ngx.req.get_method = function()
-                return "GET"
-            end
+            test_utils.mock.set_headers({
+                Origin = "https://evil.com"
+            })
+            test_utils.mock.set_method("GET")
             
             -- Configure middleware with specific allowed origins
             cors.configure({
@@ -114,23 +87,19 @@ _M.tests = {
             
             -- Verify the error was from ngx.exit
             test_utils.assert_false(ok, "Should exit with error")
-            test_utils.assert_matches(err, "^ngx%.exit%(403%)$", "Should exit with forbidden status")
-            
+            test_utils.assert_matches(err, "^ngx%.exit%(403%)$", "Should exit with forbidden status")            
         end
     },
     
     {
         name = "CORS request with invalid HTTP method",
-        func = function()
-            setup_test_environment()
+        func = function()            
             
             -- Setup request with invalid method
-            ngx.req.get_headers = function()
-                return { Origin = "https://example.com" }
-            end
-            ngx.req.get_method = function()
-                return "INVALID"
-            end
+            test_utils.mock.set_headers({
+                Origin = "https://example.com"
+            })
+            test_utils.mock.set_method("INVALID")
             
             -- Configure middleware with specific allowed methods
             cors.configure({
@@ -152,19 +121,15 @@ _M.tests = {
      
     {
         name = "CORS request with invalid headers",
-        func = function()
-            setup_test_environment()
+        func = function()            
             
             -- Setup request with invalid header
-            ngx.req.get_headers = function()
-                return { 
-                    Origin = "https://example.com",
-                    ["Invalid-Header"] = "value"
-                }
-            end
-            ngx.req.get_method = function()
-                return "GET"
-            end
+            test_utils.mock.set_headers({
+                Origin = "https://example.com",
+                ["Invalid-Header"] = "value"
+            })
+            test_utils.mock.set_method("GET")
+            
             
             -- Configure middleware with specific allowed headers
             cors.configure({
@@ -186,16 +151,13 @@ _M.tests = {
     
     {
         name = "CORS request with malformed origin",
-        func = function()
-            setup_test_environment()
+        func = function()            
             
             -- Setup request with malformed origin
-            ngx.req.get_headers = function()
-                return { Origin = "not-a-valid-url" }
-            end
-            ngx.req.get_method = function()
-                return "GET"
-            end
+            test_utils.mock.set_headers({
+                Origin = "not-a-valid-url"
+            })
+            test_utils.mock.set_method("GET")
             
             -- Test access phase
             local ok, err = pcall(function()
@@ -211,8 +173,7 @@ _M.tests = {
     -- Config validation tests
     {
         name = "Config validation - invalid allow_origins",
-        func = function()
-            setup_test_environment()
+        func = function()            
             
             -- Test with invalid string value
             local ok, err = pcall(function()
@@ -246,8 +207,7 @@ _M.tests = {
    
     {
         name = "Config validation - credentials with wildcard origin",
-        func = function()
-            setup_test_environment()
+        func = function()            
             local ok, err = pcall(function()
                 cors.configure({
                     allow_origins = {"*"},
@@ -261,11 +221,12 @@ _M.tests = {
     -- Header sanitization tests
     {
         name = "Header sanitization - malicious origin",
-        func = function()
-            setup_test_environment()
-            ngx.req.get_headers = function()
-                return { Origin = "https://good.com\r\nmalicious-header: bad" }
-            end
+        func = function()            
+            
+            test_utils.mock.set_headers({
+                Origin = "https://good.com\r\nmalicious-header: bad"
+            })
+            test_utils.mock.set_method("GET")
             
             -- Test access phase
             local ok, err = pcall(function()
@@ -281,15 +242,17 @@ _M.tests = {
     -- Vary header tests
     {
         name = "Vary header handling",
-        func = function()
-            setup_test_environment()
-            ngx.req.get_headers = function()
-                return { Origin = "https://example.com" }
-            end
+        func = function()            
+            test_utils.mock.set_headers({
+                Origin = "https://example.com"
+            })
+            test_utils.mock.set_method("GET")
             
+            ngx.log(ngx.DEBUG, "Vary header before: " .. cjson.encode(ngx.header))
             cors.access:handle()
             cors.header_filter:handle()
-            
+            ngx.log(ngx.DEBUG, "Vary header after: " .. cjson.encode(ngx.header))
+
             local vary = ngx.header["Vary"]
             test_utils.assert_not_nil(vary, "Vary header should be set")
             test_utils.assert_true(
@@ -302,16 +265,14 @@ _M.tests = {
     -- Common headers tests
     {
         name = "Common headers are always allowed",
-        func = function()
-            setup_test_environment()
-            ngx.req.get_headers = function()
-                return {
-                    Origin = "https://example.com",
-                    Accept = "application/json",
-                    ["User-Agent"] = "test-agent",
-                    Host = "api.example.com"
-                }
-            end
+        func = function()            
+            test_utils.mock.set_headers({
+                Origin = "https://example.com",
+                Accept = "application/json",
+                ["User-Agent"] = "test-agent",
+                Host = "api.example.com"
+            })
+            test_utils.mock.set_method("GET")
             
             local result = cors.access:handle()
             test_utils.assert_true(result, "Should allow common headers")
@@ -321,8 +282,7 @@ _M.tests = {
     -- Multiple header validation test
     {
         name = "Multiple custom headers validation",
-        func = function()
-            setup_test_environment()
+        func = function()            
 
             -- ngx.log(ngx.DEBUG, "Current config: " .. cjson.encode(cors.get_config()))
 
@@ -334,13 +294,12 @@ _M.tests = {
 
             ngx.log(ngx.DEBUG, "New config: " .. cjson.encode(new_config))
             
-            ngx.req.get_headers = function()
-                return {
-                    Origin = "https://example.com",
-                    ["Custom-Header-1"] = "value1",
-                    ["Custom-Header-2"] = "value2"
-                }
-            end
+            test_utils.mock.set_headers({
+                Origin = "https://example.com",
+                ["Custom-Header-1"] = "value1",
+                ["Custom-Header-2"] = "value2"
+            })
+            test_utils.mock.set_method("GET")
             
             local result = cors.access:handle()
             test_utils.assert_true(result, "Should allow configured custom headers")
@@ -350,18 +309,14 @@ _M.tests = {
     -- Preflight request with custom headers
     {
         name = "Preflight with custom headers request",
-        func = function()
-            setup_test_environment()
-            ngx.req.get_headers = function()
-                return {
-                    Origin = "https://example.com",
-                    ["Access-Control-Request-Method"] = "POST",
-                    ["Access-Control-Request-Headers"] = "Custom-Header-1, Custom-Header-2"
-                }
-            end
-            ngx.req.get_method = function()
-                return "OPTIONS"
-            end
+        func = function()            
+            test_utils.mock.set_headers({
+                Origin = "https://example.com",
+                ["Access-Control-Request-Method"] = "POST",
+                ["Access-Control-Request-Headers"] = "Custom-Header-1, Custom-Header-2"
+            })
+            test_utils.mock.set_method("OPTIONS")
+            
             
             cors.configure({
                 allow_origins = {"https://example.com"},
@@ -381,9 +336,34 @@ _M.tests = {
     }
 }
 
--- Cleanup function
+-- Setup function to run before all tests
+function _M.before_all()
+    ngx.log(ngx.DEBUG, "Running before_all setup for: cors_test")
+    test_utils.reset_state()
+
+end
+
+-- Setup function to run before each test
+function _M.before_each()
+    ngx.log(ngx.DEBUG, "Running before_each setup for: cors_test")
+    test_utils.reset_state()
+
+    ngx.log(ngx.DEBUG, "ngx.status: " .. ngx.status)
+    ngx.log(ngx.DEBUG, "ngx.ctx: " .. cjson.encode(ngx.ctx))
+    ngx.log(ngx.DEBUG, "ngx.header: " .. cjson.encode(ngx.header))
+
+end
+
+-- Cleanup function to run after each test
+function _M.after_each()
+    ngx.log(ngx.DEBUG, "Running after_each cleanup for: cors_test")
+    test_utils.reset_state()
+end
+
+-- Cleanup function to run after all tests
 function _M.after_all()
-    teardown_test_environment()
+    ngx.log(ngx.DEBUG, "Running after_all cleanup for: cors_test")
+    test_utils.reset_state()
 end
 
 return _M 
