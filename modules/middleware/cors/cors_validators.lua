@@ -1,6 +1,6 @@
-local config = require "modules.middleware.cors.config"
-local constants = require "modules.middleware.cors.constants"
-local utils = require "modules.middleware.cors.utils"
+local config = require "modules.middleware.cors.cors_config"
+local constants = require "modules.middleware.cors.cors_constants"
+local utils = require "modules.middleware.cors.cors_utils"
 local ngx = ngx
 
 local function get_request_context()

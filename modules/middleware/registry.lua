@@ -12,7 +12,7 @@ return {
     },
 
     cors = {
-        module = "modules.middleware.cors.init",
+        module = "modules.middleware.cors.cors_init",
         enabled = true,
         multi_phase = true,
         phases = {

@@ -1,7 +1,7 @@
 local middleware_chain = require "modules.core.middleware_chain"
-local config = require "modules.middleware.cors.config"
-local handlers = require "modules.middleware.cors.handlers"
-local validators = require "modules.middleware.cors.validators"
+local config = require "modules.middleware.cors.cors_config"
+local handlers = require "modules.middleware.cors.cors_handlers"
+local validators = require "modules.middleware.cors.cors_validators"
 
 -- Initialize with default config
 local _M = {}
