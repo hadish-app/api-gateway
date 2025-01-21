@@ -5,6 +5,24 @@ local cjson = require "cjson"
 
 local _M = {}
 
+-- Setup function to run before all tests
+function _M.before_all()
+    ngx.log(ngx.DEBUG, "Running before_all setup for: cors_test")
+    test_utils.reset_state()
+
+end
+
+-- Setup function to run before each test
+function _M.before_each()
+    ngx.log(ngx.DEBUG, "Running before_each setup for: cors_test")
+    test_utils.reset_state()
+
+    ngx.log(ngx.DEBUG, "ngx.status: " .. ngx.status)
+    ngx.log(ngx.DEBUG, "ngx.ctx: " .. cjson.encode(ngx.ctx))
+    ngx.log(ngx.DEBUG, "ngx.header: " .. cjson.encode(ngx.header))
+
+end
+
 _M.tests = {
     -- Basic functionality test
     {
@@ -335,24 +353,6 @@ _M.tests = {
         end
     }
 }
-
--- Setup function to run before all tests
-function _M.before_all()
-    ngx.log(ngx.DEBUG, "Running before_all setup for: cors_test")
-    test_utils.reset_state()
-
-end
-
--- Setup function to run before each test
-function _M.before_each()
-    ngx.log(ngx.DEBUG, "Running before_each setup for: cors_test")
-    test_utils.reset_state()
-
-    ngx.log(ngx.DEBUG, "ngx.status: " .. ngx.status)
-    ngx.log(ngx.DEBUG, "ngx.ctx: " .. cjson.encode(ngx.ctx))
-    ngx.log(ngx.DEBUG, "ngx.header: " .. cjson.encode(ngx.header))
-
-end
 
 -- Cleanup function to run after each test
 function _M.after_each()

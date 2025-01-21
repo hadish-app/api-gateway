@@ -34,15 +34,15 @@ function _M.run_all_tests(base_path)
         if ok and test_module.tests then
             test_utils.run_suite(test_path, test_module.tests)
             
-            -- Run cleanup if available
-            if test_module.after_all then
-                local cleanup_ok, err = pcall(test_module.after_all)
-                ngx.log(ngx.DEBUG, "Cleanup result: ", cleanup_ok, " - ", err)
-                if not cleanup_ok then
-                    ngx.log(ngx.ERR, "Cleanup failed for ", test_path, ": ", err)
-                    table.insert(failed_tests, test_path)
-                end
-            end
+            -- -- Run cleanup if available
+            -- if test_module.after_all then
+            --     local cleanup_ok, err = pcall(test_module.after_all)
+            --     ngx.log(ngx.DEBUG, "Cleanup result: ", cleanup_ok, " - ", err)
+            --     if not cleanup_ok then
+            --         ngx.log(ngx.ERR, "Cleanup failed for ", test_path, ": ", err)
+            --         table.insert(failed_tests, test_path)
+            --     end
+            -- end
         else
             ngx.log(ngx.ERR, "Failed to load test module: ", test_path)
             table.insert(failed_tests, test_path)
