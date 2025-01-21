@@ -7,12 +7,17 @@ local service_registry = require "modules.core.service_registry"
 
 local _M = {}
 
+local original_middleware_registry_register = nil
+local original_service_registry_register = nil
+local original_middleware_chain_run_chain = nil     
+
 -- Mock dependencies
 local function setup_mocks()
     ngx.log(ngx.DEBUG, "[TEST] Setting up test mocks")
     
     -- Mock middleware_registry
     ngx.log(ngx.DEBUG, "[TEST] Mocking middleware_registry.register")
+    original_middleware_registry_register = middleware_registry.register
     middleware_registry.register = function()
         ngx.log(ngx.DEBUG, "[TEST] Called middleware_registry.register mock")
         return true
@@ -20,6 +25,7 @@ local function setup_mocks()
 
     -- Mock service_registry
     ngx.log(ngx.DEBUG, "[TEST] Mocking service_registry.register")
+    original_service_registry_register = service_registry.register
     service_registry.register = function()
         ngx.log(ngx.DEBUG, "[TEST] Called service_registry.register mock")
         return true
@@ -27,6 +33,7 @@ local function setup_mocks()
 
     -- Mock middleware_chain
     ngx.log(ngx.DEBUG, "[TEST] Mocking middleware_chain.run_chain")
+    original_middleware_chain_run_chain = middleware_chain.run_chain
     middleware_chain.run_chain = function(phase)
         ngx.log(ngx.DEBUG, "[TEST] Called middleware_chain.run_chain mock for phase: " .. phase)
         return true
@@ -35,15 +42,18 @@ local function setup_mocks()
     ngx.log(ngx.DEBUG, "[TEST] Mock setup completed")
 end
 
-_M.before_all = function()
-    ngx.log(ngx.DEBUG, "[TEST] Executing before_all hook")
-    setup_mocks()
-    ngx.log(ngx.DEBUG, "[TEST] before_all hook completed")
+function teardown_mocks()
+    ngx.log(ngx.DEBUG, "[TEST] Teardown mocks")
+    -- Restore original functions
+    middleware_registry.register = original_middleware_registry_register
+    service_registry.register = original_service_registry_register
+    middleware_chain.run_chain = original_middleware_chain_run_chain
 end
 
 _M.before_each = function()
     ngx.log(ngx.DEBUG, "[TEST] Executing before_each hook")
     test_utils.reset_state()
+    setup_mocks()
     ngx.log(ngx.DEBUG, "[TEST] before_each hook completed")
 end
 
@@ -197,6 +207,9 @@ _M.tests = {
         func = function()
             ngx.log(ngx.DEBUG, "[TEST] Starting middleware registration failure test")
             
+            -- Store original middleware registration function
+            local original_register = middleware_registry.register
+            
             -- Mock middleware registration failure
             ngx.log(ngx.DEBUG, "[TEST] Setting up middleware registration failure mock")
             middleware_registry.register = function()
@@ -204,8 +217,17 @@ _M.tests = {
                 return false, "Mock middleware registration error"
             end
             
-            local ok = phase_handlers.init()
+            -- Execute init phase   
+            ngx.log(ngx.DEBUG, "[TEST] Executing init phase")
+            local ok, err = phase_handlers.init()
+            
+            -- Verify initialization failure
+            ngx.log(ngx.DEBUG, "[TEST] Verifying initialization failure: ok=" .. tostring(ok) .. ", err=" .. tostring(err))
             test_utils.assert_false(ok, "Init should fail when middleware registration fails")
+            
+            -- Restore original middleware registration
+            ngx.log(ngx.DEBUG, "[TEST] Restoring original middleware registration")
+            middleware_registry.register = original_register
             
             ngx.log(ngx.DEBUG, "[TEST] Middleware registration failure test completed")
         end
@@ -229,5 +251,13 @@ _M.tests = {
         end
     }
 }
+
+_M.after_each = function()
+    ngx.log(ngx.DEBUG, "[TEST] Executing after_each hook")
+    teardown_mocks()
+    test_utils.reset_state()
+
+    ngx.log(ngx.DEBUG, "[TEST] after_each hook completed")
+end
 
 return _M 

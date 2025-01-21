@@ -1,6 +1,6 @@
-local config = require "modules.middleware.cors.cors_config"
-local validators = require "modules.middleware.cors.cors_validators"
-local utils = require "modules.middleware.cors.cors_utils"
+local config = require "middleware.cors.cors_config"
+local validators = require "middleware.cors.cors_validators"
+local utils = require "middleware.cors.cors_utils"
 local ngx = ngx
 
 local function get_request_context()

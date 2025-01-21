@@ -1,7 +1,7 @@
 -- Middleware registry
 return {
     request_id = {
-        module = "modules.middleware.request_id",
+        module = "middleware.request_id",
         enabled = true,
         multi_phase = true,
         phases = {
@@ -12,7 +12,7 @@ return {
     },
 
     cors = {
-        module = "modules.middleware.cors.cors_init",
+        module = "middleware.cors.cors_init",
         enabled = true,
         multi_phase = true,
         phases = {
@@ -23,7 +23,7 @@ return {
     },
 
     router = {
-        module = "modules.middleware.router",
+        module = "middleware.router",
         enabled = true,
         multi_phase = false,
         phase = "content",

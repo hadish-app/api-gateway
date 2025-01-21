@@ -1,6 +1,6 @@
 local cjson = require "cjson"
-local constants = require "modules.middleware.cors.cors_constants"
-local utils = require "modules.middleware.cors.cors_utils"
+local constants = require "middleware.cors.cors_constants"
+local utils = require "middleware.cors.cors_utils"
 local ngx = ngx
 
 -- Cache for computed values

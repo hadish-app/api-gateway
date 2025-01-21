@@ -5,7 +5,7 @@
 -- 1. Requires
 local test_utils = require "tests.core.test_utils"
 local middleware_registry = require "modules.core.middleware_registry"
-local registry = require "modules.middleware.registry"
+local registry = require "middleware.registry"
 
 -- 2. Local helper functions
 local function setup_test_environment()
@@ -32,7 +32,7 @@ end
 -- 5. Test cases
 _M.tests = {
     {
-        name = "Test: Registry initialization and middleware registration",
+        name = "Registry initialization and middleware registration",
         func = function()
             -- Register middlewares
             local ok = middleware_registry.register()
@@ -56,7 +56,7 @@ _M.tests = {
         end
     },
     {
-        name = "Test: Registry phase validation",
+        name = "Registry phase validation",
         func = function()
             -- Try to register middleware with invalid phase
             local invalid_reg = {

@@ -6,7 +6,7 @@ local cjson = require "cjson"
 
 -- Import middleware chain and registry
 local middleware_chain = require "modules.core.middleware_chain"
-local middleware_registry = require "modules.middleware.registry"
+local middleware_registry = require "middleware.registry"
 
 -- Define valid phases
 local PHASES = {
