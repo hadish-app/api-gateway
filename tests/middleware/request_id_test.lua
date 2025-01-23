@@ -2,13 +2,13 @@
 -- @module tests.modules.middleware.request_id_test
 
 -- 1. Requires
-local test_utils = require "tests.core.test_utils"
-local request_id = require "modules.middleware.request_id"
+local test_runner = require "modules.test.test_runner"
+local request_id = require "middleware.request_id"
 local cjson = require "cjson"
 
 -- 2. Local helper functions
 local function setup_test_environment()
-    test_utils.reset_state()
+    test_runner.reset_state()
     -- Reset request headers
     ngx.req.get_headers = function()
         return {}
@@ -60,12 +60,12 @@ local _M = {}
 -- 4. Test setup
 function _M.before_all()
     ngx.log(ngx.DEBUG, "Running before_all setup for: request_id_test")
-    test_utils.reset_state()
+    test_runner.reset_state()
 end
 
 function _M.before_each()
     ngx.log(ngx.DEBUG, "Running before_each setup for: request_id_test")
-    test_utils.reset_state()
+    test_runner.reset_state()
     
     -- Log initial state for debugging
     ngx.log(ngx.DEBUG, "Initial test state:")
@@ -80,26 +80,26 @@ _M.tests = {
         name = "Test: New request ID generation",
         func = function()
             -- Setup request without X-Request-ID
-            test_utils.mock.set_headers({})
-            test_utils.mock.set_method("GET")
+            test_runner.mock.set_headers({})
+            test_runner.mock.set_method("GET")
             
             -- Run access phase
             local access_result = request_id.access:handle()
-            test_utils.assert_true(access_result, "Access phase should succeed")
+            test_runner.assert_true(access_result, "Access phase should succeed")
             
             -- Verify request ID was generated and stored
             local stored_id = request_id._M.get_request_id()
-            test_utils.assert_not_nil(stored_id, "Request ID should be generated")
-            test_utils.assert_type(stored_id, "string", "Generated ID should be a string")
-            test_utils.assert_true(request_id._M.is_valid_uuid(stored_id), 
+            test_runner.assert_not_nil(stored_id, "Request ID should be generated")
+            test_runner.assert_type(stored_id, "string", "Generated ID should be a string")
+            test_runner.assert_true(request_id._M.is_valid_uuid(stored_id), 
                 "Generated ID should be a valid UUID")
             
             -- Run header filter phase
             local header_result = request_id.header_filter:handle()
-            test_utils.assert_true(header_result, "Header filter phase should succeed")
+            test_runner.assert_true(header_result, "Header filter phase should succeed")
             
             -- Verify response header
-            test_utils.assert_equals(stored_id, ngx.header["X-Request-ID"], 
+            test_runner.assert_equals(stored_id, ngx.header["X-Request-ID"], 
                 "Response header should match stored ID")
         end
     },
@@ -108,26 +108,26 @@ _M.tests = {
         func = function()
             -- Generate and set incoming request ID
             local incoming_id = request_id._M.generate_request_id()
-            test_utils.mock.set_headers({
+            test_runner.mock.set_headers({
                 ["X-Request-ID"] = incoming_id
             })
-            test_utils.mock.set_method("GET")
+            test_runner.mock.set_method("GET")
             
             -- Run access phase
             local access_result = request_id.access:handle()
-            test_utils.assert_true(access_result, "Access phase should succeed")
+            test_runner.assert_true(access_result, "Access phase should succeed")
             
             -- Verify incoming ID was preserved
             local stored_id = request_id._M.get_request_id()
-            test_utils.assert_equals(incoming_id, stored_id, 
+            test_runner.assert_equals(incoming_id, stored_id, 
                 "Incoming request ID should be stored")
             
             -- Run header filter phase
             local header_result = request_id.header_filter:handle()
-            test_utils.assert_true(header_result, "Header filter phase should succeed")
+            test_runner.assert_true(header_result, "Header filter phase should succeed")
             
             -- Verify response header matches incoming ID
-            test_utils.assert_equals(incoming_id, ngx.header["X-Request-ID"], 
+            test_runner.assert_equals(incoming_id, ngx.header["X-Request-ID"], 
                 "Response header should match incoming ID")
         end
     },
@@ -157,35 +157,35 @@ _M.tests = {
             for _, invalid_id in ipairs(malicious_ids) do
                 ngx.log(ngx.DEBUG, "Testing malicious ID: " .. invalid_id)
                 
-                test_utils.mock.set_headers({
+                test_runner.mock.set_headers({
                     ["X-Request-ID"] = invalid_id
                 })
-                test_utils.mock.set_method("GET")
+                test_runner.mock.set_method("GET")
                 
                 -- Run access phase
                 local access_result = request_id.access:handle()
-                test_utils.assert_true(access_result, 
+                test_runner.assert_true(access_result, 
                     "Access phase should succeed even with malicious ID: " .. invalid_id)
                 
                 -- Verify malicious ID was rejected
                 local stored_id = request_id._M.get_request_id()
-                test_utils.assert_not_equals(invalid_id, stored_id, 
+                test_runner.assert_not_equals(invalid_id, stored_id, 
                     "Malicious request ID should not be stored: " .. invalid_id)
-                test_utils.assert_true(request_id._M.is_valid_uuid(stored_id), 
+                test_runner.assert_true(request_id._M.is_valid_uuid(stored_id), 
                     "Generated ID should be a valid UUID format")
             end
 
             -- Verify valid UUID is accepted
             local valid_uuid = "668396f3-c758-4d57-b014-63d3dc0dfa4c"
-            test_utils.mock.set_headers({
+            test_runner.mock.set_headers({
                 ["X-Request-ID"] = valid_uuid
             })
             
             local access_result = request_id.access:handle()
-            test_utils.assert_true(access_result, "Access phase should succeed for valid UUID")
+            test_runner.assert_true(access_result, "Access phase should succeed for valid UUID")
             
             local stored_id = request_id._M.get_request_id()
-            test_utils.assert_equals(valid_uuid, stored_id, "Valid UUID should be stored unchanged")
+            test_runner.assert_equals(valid_uuid, stored_id, "Valid UUID should be stored unchanged")
         end
     }
 }
@@ -193,7 +193,7 @@ _M.tests = {
 -- Cleanup function to run after each test
 function _M.after_each()
     ngx.log(ngx.DEBUG, "Running after_each cleanup for: request_id_test")
-    test_utils.reset_state()
+    test_runner.reset_state()
     
     -- Log final state for debugging
     ngx.log(ngx.DEBUG, "Final test state:")
@@ -205,7 +205,7 @@ end
 -- Cleanup function to run after all tests
 function _M.after_all()
     ngx.log(ngx.DEBUG, "Running after_all cleanup for: request_id_test")
-    test_utils.reset_state()
+    test_runner.reset_state()
 end
 
 return _M 

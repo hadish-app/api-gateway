@@ -3,12 +3,12 @@
 -- @description Template for standardized test structure
 
 -- 1. Requires
-local test_utils = require "tests.core.test_utils"
+local test_runner = require "modules.test.test_runner"
 
 -- 2. Local helper functions
 local function setup_test_environment()
     -- Reset state
-    test_utils.reset_state()
+    test_runner.reset_state()
     -- Add any other setup needed
 end
 

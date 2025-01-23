@@ -1,7 +1,3 @@
---- Test utilities module
--- @module tests.core.test_utils
--- @description Common utilities and assertions for tests
-
 local cjson = require "cjson"
 
 local _M = {}
@@ -74,6 +70,7 @@ _M.COLORS = {
     RED = "\27[31m",
     GREEN = "\27[32m",
     YELLOW = "\27[33m",
+    BLUE = "\27[34m",
     RESET = "\27[0m"
 }
 
@@ -410,6 +407,243 @@ function _M.run_suite(test_path, tests, before_all, before_each, after_each, aft
     else
         ngx.say("Failed: " .. failed)
     end
+end
+
+function _M.find_test_files(path, results)
+    ngx.log(ngx.DEBUG, "[TEST_RUNNER] Finding test files for path: " .. path)
+    results = results or {}
+    
+    -- Get OpenResty's prefix path and ensure clean path concatenation
+    local prefix = ngx.config.prefix():gsub("/$", "")  -- Remove trailing slash if present
+    local clean_path = path:gsub("^/", "")  -- Remove leading slash if present
+    local full_path = prefix .. "/" .. clean_path
+    
+    ngx.log(ngx.DEBUG, "[TEST_RUNNER] Looking for tests in: " .. full_path)
+    ngx.log(ngx.DEBUG, "[TEST_RUNNER] Original path: " .. path)
+    ngx.log(ngx.DEBUG, "[TEST_RUNNER] Prefix path: " .. prefix)
+    
+    -- Check if path exists
+    local handle = io.popen('[ -e "' .. full_path .. '" ] && echo "exists"')
+    local exists = handle:read("*a")
+    handle:close()
+    
+    ngx.log(ngx.DEBUG, "[TEST_RUNNER] Path exists check result: " .. tostring(exists ~= ""))
+    
+    if exists == "" then
+        -- If path doesn't exist, try appending _test.lua
+        if not string.match(path, "_test%.lua$") then
+            local test_path = path .. "_test.lua"
+            ngx.log(ngx.DEBUG, "[TEST_RUNNER] Path doesn't exist, trying with _test.lua: " .. test_path)
+            return _M.find_test_files(test_path, results)
+        end
+        ngx.log(ngx.DEBUG, "[TEST_RUNNER] Path doesn't exist and already ends with _test.lua")
+        return nil, "Path does not exist: " .. path
+    end
+    
+    -- Check if it's a directory
+    handle = io.popen('[ -d "' .. full_path .. '" ] && echo "dir"')
+    local is_dir = handle:read("*a")
+    handle:close()
+    
+    ngx.log(ngx.DEBUG, "[TEST_RUNNER] Is directory check result: " .. tostring(is_dir ~= ""))
+    
+    if is_dir ~= "" then
+        -- It's a directory, list all files
+        ngx.log(ngx.DEBUG, "[TEST_RUNNER] Path is a directory, searching for test files")
+        handle = io.popen('find "' .. full_path .. '" -type f -name "*_test.lua"')
+        local files = handle:read("*a")
+        handle:close()
+        
+        -- Split files by newline and add to results
+        for file in string.gmatch(files, "[^\n]+") do
+            -- Convert absolute path back to relative path
+            local relative_path = string.sub(file, #prefix + 2)
+            ngx.log(ngx.DEBUG, "[TEST_RUNNER] Found test file: " .. relative_path)
+            table.insert(results, relative_path)
+        end
+        
+        ngx.log(ngx.DEBUG, "[TEST_RUNNER] Total test files found in directory: " .. #results)
+    else
+        -- It's a file, check if it's a test file
+        ngx.log(ngx.DEBUG, "[TEST_RUNNER] Path is a file")
+        if string.match(path, "_test%.lua$") then
+            ngx.log(ngx.DEBUG, "[TEST_RUNNER] File is a test file, returning single file: " .. path)
+            -- For single test files, we should only return this file
+            return {path}
+        else
+            ngx.log(ngx.DEBUG, "[TEST_RUNNER] File is not a test file: " .. path)
+        end
+    end
+    
+    -- Only return results if we found any test files
+    if #results > 0 then
+        ngx.log(ngx.DEBUG, "[TEST_RUNNER] Returning " .. #results .. " test files")
+        return results
+    else
+        ngx.log(ngx.DEBUG, "[TEST_RUNNER] No test files found")
+        return nil, "No test files found in path: " .. path
+    end
+end
+
+function _M.run_tests(path)
+    ngx.log(ngx.DEBUG, "[TEST_RUNNER] Starting test execution for path: " .. path)
+    
+    -- Find all test files
+    local test_files, err = _M.find_test_files(path)
+    if not test_files then
+        ngx.log(ngx.ERR, "[TEST_RUNNER] Error finding test files: " .. err)
+        return false, err
+    end
+    
+    ngx.log(ngx.DEBUG, "[TEST_RUNNER] Found " .. #test_files .. " test files to execute")
+    for i, file in ipairs(test_files) do
+        ngx.log(ngx.DEBUG, "[TEST_RUNNER] Test file " .. i .. ": " .. file)
+    end
+    
+    if #test_files == 0 then
+        ngx.log(ngx.WARN, "[TEST_RUNNER] No test files found in path: " .. path)
+        ngx.say("No test files found in path: " .. path)
+        return true
+    end
+    
+    -- Sort test files for consistent execution order
+    table.sort(test_files)
+    
+    -- Track overall statistics
+    local total_tests = 0
+    local total_passed = 0
+    local total_failed = 0
+    local failed_tests = {}
+    
+    -- Run each test file
+    for _, test_file in ipairs(test_files) do
+        ngx.log(ngx.INFO, "[TEST_RUNNER] Running test file: " .. test_file)
+        ngx.say(_M.COLORS.YELLOW .. "\n=== Running tests from: " .. test_file .. " ===\n" .. _M.COLORS.RESET)
+        
+        -- Load the test module
+        local ok, test_module = pcall(require, string.gsub(test_file:sub(1, -5), "/", "."))
+        if not ok then
+            ngx.log(ngx.ERR, "[TEST_RUNNER] Error loading test module: " .. test_module)
+            ngx.say(_M.COLORS.RED .. "Error loading test module: " .. test_module .. _M.COLORS.RESET)
+            table.insert(failed_tests, {
+                file = test_file,
+                error = "Failed to load module: " .. test_module
+            })
+            goto continue
+        end
+        
+        -- Run the test suite
+        local before_suite = test_module.before_all
+        local after_suite = test_module.after_all
+        local before_each = test_module.before_each
+        local after_each = test_module.after_each
+        
+        -- Setup test environment
+        _M.setup_mocks()
+        
+        -- Run before_all if available
+        if before_suite then
+            local ok, err = pcall(before_suite)
+            if not ok then
+                ngx.log(ngx.ERR, "[TEST_RUNNER] before_all failed: " .. tostring(err))
+                ngx.say(_M.COLORS.RED .. "Error in before_all: " .. err .. _M.COLORS.RESET)
+                goto continue
+            end
+        end
+        
+        -- Run individual tests
+        local suite_total = 0
+        local suite_passed = 0
+        local suite_failed = 0
+        
+        for _, test in ipairs(test_module.tests or {}) do
+            suite_total = suite_total + 1
+            ngx.log(ngx.DEBUG, "[TEST_RUNNER] Running test: " .. test.name)
+            ngx.say("\nTest: " .. test.name)
+            
+            -- Run before_each
+            if before_each then
+                local ok, err = pcall(before_each)
+                if not ok then
+                    ngx.log(ngx.ERR, "[TEST_RUNNER] before_each failed: " .. tostring(err))
+                    ngx.say(_M.COLORS.RED .. "Error in before_each: " .. err .. _M.COLORS.RESET)
+                    suite_failed = suite_failed + 1
+                    goto next_test
+                end
+            end
+            
+            -- Run test
+            local ok, err = pcall(test.func)
+            if ok then
+                suite_passed = suite_passed + 1
+            else
+                suite_failed = suite_failed + 1
+                ngx.log(ngx.ERR, "[TEST_RUNNER] Test failed: " .. tostring(err))
+                ngx.say(_M.COLORS.RED .. "Error: " .. err .. _M.COLORS.RESET)
+            end
+            
+            -- Run after_each
+            if after_each then
+                local ok, err = pcall(after_each)
+                if not ok then
+                    ngx.log(ngx.ERR, "[TEST_RUNNER] after_each failed: " .. tostring(err))
+                    ngx.say(_M.COLORS.RED .. "Error in after_each: " .. err .. _M.COLORS.RESET)
+                end
+            end
+            
+            ::next_test::
+        end
+        
+        -- Run after_all if available
+        if after_suite then
+            local ok, err = pcall(after_suite)
+            if not ok then
+                ngx.log(ngx.ERR, "[TEST_RUNNER] after_all failed: " .. tostring(err))
+                ngx.say(_M.COLORS.RED .. "Error in after_all: " .. err .. _M.COLORS.RESET)
+            end
+        end
+        
+        -- Teardown test environment
+        _M.teardown_mocks()
+        
+        -- Update overall statistics
+        total_tests = total_tests + suite_total
+        total_passed = total_passed + suite_passed
+        total_failed = total_failed + suite_failed
+        
+        -- Print suite summary
+        ngx.say("\nSuite Summary for " .. test_file .. ":")
+        ngx.say("Total: " .. suite_total)
+        ngx.say(_M.COLORS.GREEN .. "Passed: " .. suite_passed .. _M.COLORS.RESET)
+        if suite_failed > 0 then
+            ngx.say(_M.COLORS.RED .. "Failed: " .. suite_failed .. _M.COLORS.RESET)
+        else
+            ngx.say("Failed: " .. suite_failed)
+        end
+        
+        ::continue::
+    end
+    
+    -- Print overall summary
+    ngx.say(_M.COLORS.BLUE .. "\n=== Overall Test Summary ===\n" .. _M.COLORS.RESET)
+    ngx.say("Total Test Files: " .. #test_files)
+    ngx.say("Total Tests: " .. total_tests)
+    ngx.say(_M.COLORS.GREEN .. "Total Passed: " .. total_passed .. _M.COLORS.RESET)
+    if total_failed > 0 then
+        ngx.say(_M.COLORS.RED .. "Total Failed: " .. total_failed .. _M.COLORS.RESET)
+    else
+        ngx.say("Total Failed: " .. total_failed)
+    end
+    
+    -- Print failed tests if any
+    if #failed_tests > 0 then
+        ngx.say("\n" .. _M.COLORS.RED .. "Failed Test Files:" .. _M.COLORS.RESET)
+        for _, failure in ipairs(failed_tests) do
+            ngx.say(failure.file .. ": " .. failure.error)
+        end
+    end
+    
+    return true
 end
 
 return _M 

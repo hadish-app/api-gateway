@@ -1,15 +1,15 @@
 -- Integration test for environment variable utilities
-local test_utils = require "tests.core.test_utils"
+local test_runner = require "modules.test.test_runner"
 local env = require "utils.env"
 
 local _M = {}
 
 -- Helper function to test section configuration
 local function test_section(config, section_name, expected_values)
-    test_utils.assert_equals("table", type(config[section_name]), section_name .. " section exists")
+    test_runner.assert_equals("table", type(config[section_name]), section_name .. " section exists")
     if config[section_name] then
         for key, expected in pairs(expected_values) do
-            test_utils.assert_equals(expected, config[section_name][key], 
+            test_runner.assert_equals(expected, config[section_name][key], 
                 string.format("%s.%s value matches", section_name, key))
         end
     end
@@ -85,7 +85,7 @@ _M.tests = {
         name = "Test: Environment loading",
         func = function()
             local config = env.load_all()
-            test_utils.assert_equals("table", type(config), "Configuration loaded successfully")
+            test_runner.assert_equals("table", type(config), "Configuration loaded successfully")
             if type(config) == "table" then
                 ngx.say("Loaded configuration:")
                 ngx.say(require("cjson").encode(config))
@@ -98,11 +98,11 @@ _M.tests = {
             -- Get environment variables
             local env_values = get_env_vars()
             -- Check if we have any values
-            test_utils.assert_equals(true, next(env_values) ~= nil, "Environment variables loaded successfully")
+            test_runner.assert_equals(true, next(env_values) ~= nil, "Environment variables loaded successfully")
             
             -- Load configuration
             local config = env.load_all()
-            test_utils.assert_equals("table", type(config), "Configuration loaded successfully")
+            test_runner.assert_equals("table", type(config), "Configuration loaded successfully")
             
             -- Test each section dynamically
             for section, values in pairs(env_values) do

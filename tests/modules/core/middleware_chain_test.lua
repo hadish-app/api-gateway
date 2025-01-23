@@ -1,4 +1,4 @@
-local test_utils = require "tests.core.test_utils"
+local test_runner = require "modules.test.test_runner"
 local middleware_chain = require "modules.core.middleware_chain"
 
 local _M = {}
@@ -87,16 +87,16 @@ _M.tests = {
             local result = middleware_chain.run("/")
             
             -- Verify first execution
-            test_utils.assert_equals(true, result, "Chain should complete successfully")
-            test_utils.assert_equals(1, m1.execution_count, "Middleware should execute once")
+            test_runner.assert_equals(true, result, "Chain should complete successfully")
+            test_runner.assert_equals(1, m1.execution_count, "Middleware should execute once")
 
             -- Run chain again
             ngx.log(ngx.DEBUG, "Running middleware chain second time")
             result = middleware_chain.run("/")
             
             -- Verify second execution
-            test_utils.assert_equals(true, result, "Chain should complete successfully on second run")
-            test_utils.assert_equals(2, m1.execution_count, "Middleware should execute twice")
+            test_runner.assert_equals(true, result, "Chain should complete successfully on second run")
+            test_runner.assert_equals(2, m1.execution_count, "Middleware should execute twice")
             
             -- Disable m1
             ngx.log(ngx.DEBUG, "Disabling m1")
@@ -107,8 +107,8 @@ _M.tests = {
             result = middleware_chain.run("/")
             
             -- Verify execution count didn't increase
-            test_utils.assert_equals(true, result, "Chain should complete successfully with disabled middleware")
-            test_utils.assert_equals(2, m1.execution_count, "Disabled middleware should not execute")
+            test_runner.assert_equals(true, result, "Chain should complete successfully with disabled middleware")
+            test_runner.assert_equals(2, m1.execution_count, "Disabled middleware should not execute")
 
             -- Enable m1
             ngx.log(ngx.DEBUG, "Enabling m1")
@@ -119,8 +119,8 @@ _M.tests = {
             result = middleware_chain.run("/")
             
             -- Verify execution count increased
-            test_utils.assert_equals(true, result, "Chain should complete successfully with enabled middleware")
-            test_utils.assert_equals(3, m1.execution_count, "Enabled middleware should execute")
+            test_runner.assert_equals(true, result, "Chain should complete successfully with enabled middleware")
+            test_runner.assert_equals(3, m1.execution_count, "Enabled middleware should execute")
 
             ngx.log(ngx.DEBUG, "Test completed. Result: ", result, ", Execution count: ", m1.execution_count)
             
@@ -158,11 +158,11 @@ _M.tests = {
             middleware_chain.run("/")
             
             -- Verify execution order based on priority (lowest to highest)
-            test_utils.assert_equals("m2", execution_order[1], "M2 (priority 10) should execute first")
-            test_utils.assert_equals("m4", execution_order[2], "M4 (priority 20) should execute second")
-            test_utils.assert_equals("m3", execution_order[3], "M3 (priority 30) should execute third")
-            test_utils.assert_equals("m5", execution_order[4], "M5 (priority 40) should execute fourth")
-            test_utils.assert_equals("m1", execution_order[5], "M1 (priority 50) should execute last")
+            test_runner.assert_equals("m2", execution_order[1], "M2 (priority 10) should execute first")
+            test_runner.assert_equals("m4", execution_order[2], "M4 (priority 20) should execute second")
+            test_runner.assert_equals("m3", execution_order[3], "M3 (priority 30) should execute third")
+            test_runner.assert_equals("m5", execution_order[4], "M5 (priority 40) should execute fourth")
+            test_runner.assert_equals("m1", execution_order[5], "M1 (priority 50) should execute last")
             
             
         end
@@ -190,9 +190,9 @@ _M.tests = {
             
             -- Test admin route
             middleware_chain.run("/admin")
-            test_utils.assert_equals(1, global_m.execution_count, "Global middleware should execute")
-            test_utils.assert_equals(1, admin_m.execution_count, "Admin middleware should execute")
-            test_utils.assert_equals(0, api_m.execution_count, "API middleware should not execute")
+            test_runner.assert_equals(1, global_m.execution_count, "Global middleware should execute")
+            test_runner.assert_equals(1, admin_m.execution_count, "Admin middleware should execute")
+            test_runner.assert_equals(0, api_m.execution_count, "API middleware should not execute")
             
             -- Reset counts
             global_m.execution_count = 0
@@ -201,9 +201,9 @@ _M.tests = {
             
             -- Test api route
             middleware_chain.run("/api")
-            test_utils.assert_equals(1, global_m.execution_count, "Global middleware should execute")
-            test_utils.assert_equals(0, admin_m.execution_count, "Admin middleware should not execute")
-            test_utils.assert_equals(1, api_m.execution_count, "API middleware should execute")
+            test_runner.assert_equals(1, global_m.execution_count, "Global middleware should execute")
+            test_runner.assert_equals(0, admin_m.execution_count, "Admin middleware should not execute")
+            test_runner.assert_equals(1, api_m.execution_count, "API middleware should execute")
             
             
         end
@@ -220,41 +220,41 @@ _M.tests = {
             
             -- Test disabled state (default)
             middleware_chain.run("/")
-            test_utils.assert_equals(0, m1.execution_count, "Disabled middleware should not execute")
+            test_runner.assert_equals(0, m1.execution_count, "Disabled middleware should not execute")
             
             -- Test active state
             middleware_chain.set_state("m1", true)
             middleware_chain.run("/")
-            test_utils.assert_equals(1, m1.execution_count, "Active middleware should execute")
+            test_runner.assert_equals(1, m1.execution_count, "Active middleware should execute")
             
             -- Test disabling again
             middleware_chain.set_state("m1", false)
             middleware_chain.run("/")
-            test_utils.assert_equals(1, m1.execution_count, "Disabled middleware should not execute again")
+            test_runner.assert_equals(1, m1.execution_count, "Disabled middleware should not execute again")
             
             -- Test invalid state transition
             local ok, err = pcall(function()
                 middleware_chain.set_state("m1", "INVALID_STATE")
             end)
-            test_utils.assert_equals(false, ok, "Setting invalid state should fail")
+            test_runner.assert_equals(false, ok, "Setting invalid state should fail")
             
             -- Test non-existent middleware
             ok, err = pcall(function() 
                 middleware_chain.set_state("non_existent", true)
             end)
-            test_utils.assert_equals(false, ok, "Setting state for non-existent middleware should fail")
+            test_runner.assert_equals(false, ok, "Setting state for non-existent middleware should fail")
             
             -- Test state persistence
             middleware_chain.set_state("m1", true)
             middleware_chain.run("/")
-            test_utils.assert_equals(2, m1.execution_count, "State should persist between runs")
+            test_runner.assert_equals(2, m1.execution_count, "State should persist between runs")
             
             -- Test multiple state changes
             middleware_chain.set_state("m1", false)
             middleware_chain.set_state("m1", true)
             middleware_chain.set_state("m1", false)
             middleware_chain.run("/")
-            test_utils.assert_equals(2, m1.execution_count, "Final disabled state should be respected")
+            test_runner.assert_equals(2, m1.execution_count, "Final disabled state should be respected")
             
             
         end
@@ -283,8 +283,8 @@ _M.tests = {
             
             ngx.log(ngx.DEBUG, "pcall result: ok=", tostring(ok), ", err=", tostring(err))
             
-            test_utils.assert_equals(false, ok, "Chain should throw an error")
-            test_utils.assert_equals(true, string.match(tostring(err), "Middleware " .. middleware_name .. " failed") ~= nil,
+            test_runner.assert_equals(false, ok, "Chain should throw an error")
+            test_runner.assert_equals(true, string.match(tostring(err), "Middleware " .. middleware_name .. " failed") ~= nil,
                 "Error should contain middleware failure message")
             
             
@@ -315,10 +315,10 @@ _M.tests = {
             local result = middleware_chain.run("/")
             
             -- Verify
-            test_utils.assert_equals(false, result, "Chain should return false when interrupted")
-            test_utils.assert_equals(1, m1.execution_count, "First middleware should execute")
-            test_utils.assert_equals(1, m2.execution_count, "Second middleware should execute")
-            test_utils.assert_equals(0, m3.execution_count, "Third middleware should not execute")            
+            test_runner.assert_equals(false, result, "Chain should return false when interrupted")
+            test_runner.assert_equals(1, m1.execution_count, "First middleware should execute")
+            test_runner.assert_equals(1, m2.execution_count, "Second middleware should execute")
+            test_runner.assert_equals(0, m3.execution_count, "Third middleware should not execute")            
         end
     }
 }

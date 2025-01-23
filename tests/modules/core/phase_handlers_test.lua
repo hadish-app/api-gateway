@@ -1,5 +1,5 @@
 local cjson = require "cjson"
-local test_utils = require "tests.core.test_utils"
+local test_runner = require "modules.test.test_runner"
 local phase_handlers = require "modules.core.phase_handlers"
 local middleware_chain = require "modules.core.middleware_chain"
 local middleware_registry = require "modules.core.middleware_registry"
@@ -52,7 +52,7 @@ end
 
 _M.before_each = function()
     ngx.log(ngx.DEBUG, "[TEST] Executing before_each hook")
-    test_utils.reset_state()
+    test_runner.reset_state()
     setup_mocks()
     ngx.log(ngx.DEBUG, "[TEST] before_each hook completed")
 end
@@ -69,8 +69,8 @@ _M.tests = {
             
             -- Verify successful initialization
             ngx.log(ngx.DEBUG, "[TEST] Verifying initialization result: ok=" .. tostring(ok) .. ", err=" .. tostring(err))
-            test_utils.assert_true(ok, "Init phase should succeed")
-            test_utils.assert_nil(err, "No error should be present")
+            test_runner.assert_true(ok, "Init phase should succeed")
+            test_runner.assert_nil(err, "No error should be present")
             
             -- Verify all required shared dictionaries exist
             local required_dicts = {
@@ -81,7 +81,7 @@ _M.tests = {
             ngx.log(ngx.DEBUG, "[TEST] Verifying required shared dictionaries")
             for _, dict_name in ipairs(required_dicts) do
                 ngx.log(ngx.DEBUG, "[TEST] Checking shared dictionary: " .. dict_name)
-                test_utils.assert_not_nil(
+                test_runner.assert_not_nil(
                     ngx.shared[dict_name], 
                     "Shared dictionary '" .. dict_name .. "' should exist"
                 )
@@ -96,37 +96,37 @@ _M.tests = {
             ngx.log(ngx.DEBUG, "[TEST] Starting initial shared state values test")
             
             local ok = phase_handlers.init()
-            test_utils.assert_true(ok, "Init should succeed")
+            test_runner.assert_true(ok, "Init should succeed")
             
             -- Verify stats initialization
             ngx.log(ngx.DEBUG, "[TEST] Verifying stats dictionary values")
             local stats = ngx.shared.stats
-            test_utils.assert_not_nil(stats, "Stats dictionary should exist")
+            test_runner.assert_not_nil(stats, "Stats dictionary should exist")
 
             local start_time = stats:get("start_time")
             ngx.log(ngx.DEBUG, "[TEST] Stats - start_time: " .. tostring(start_time))      
-            test_utils.assert_not_nil(start_time, "Start time should be set")
+            test_runner.assert_not_nil(start_time, "Start time should be set")
             
             local total_requests = stats:get("total_requests")
             ngx.log(ngx.DEBUG, "[TEST] Stats - total_requests: " .. tostring(total_requests))
-            test_utils.assert_equals(total_requests, 0, "Total requests should be initialized to 0")
+            test_runner.assert_equals(total_requests, 0, "Total requests should be initialized to 0")
             
             local active_connections = stats:get("active_connections")
             ngx.log(ngx.DEBUG, "[TEST] Stats - active_connections: " .. tostring(active_connections))
-            test_utils.assert_equals(active_connections, 0, "Active connections should be initialized to 0")
+            test_runner.assert_equals(active_connections, 0, "Active connections should be initialized to 0")
             
             -- Verify metrics initialization
             ngx.log(ngx.DEBUG, "[TEST] Verifying metrics dictionary values")
             local metrics = ngx.shared.metrics
-            test_utils.assert_not_nil(metrics, "Metrics dictionary should exist")
+            test_runner.assert_not_nil(metrics, "Metrics dictionary should exist")
             
             local rps = metrics:get("requests_per_second")
             ngx.log(ngx.DEBUG, "[TEST] Metrics - requests_per_second: " .. tostring(rps))
-            test_utils.assert_equals(rps, 0, "RPS should be initialized to 0")
+            test_runner.assert_equals(rps, 0, "RPS should be initialized to 0")
             
             local avg_response_time = metrics:get("average_response_time")
             ngx.log(ngx.DEBUG, "[TEST] Metrics - average_response_time: " .. tostring(avg_response_time))
-            test_utils.assert_equals(avg_response_time, 0, "Average response time should be initialized to 0")
+            test_runner.assert_equals(avg_response_time, 0, "Average response time should be initialized to 0")
             
             ngx.log(ngx.DEBUG, "[TEST] Initial shared state values test completed")
         end
@@ -137,12 +137,12 @@ _M.tests = {
             ngx.log(ngx.DEBUG, "[TEST] Starting config cache initialization test")
             
             local ok = phase_handlers.init()
-            test_utils.assert_true(ok, "Init should succeed")
+            test_runner.assert_true(ok, "Init should succeed")
             
             -- Verify config cache exists and is accessible
             ngx.log(ngx.DEBUG, "[TEST] Verifying config_cache dictionary")
             local config_cache = ngx.shared.config_cache
-            test_utils.assert_not_nil(config_cache, "Config cache should exist")
+            test_runner.assert_not_nil(config_cache, "Config cache should exist")
             
             ngx.log(ngx.DEBUG, "[TEST] Config cache initialization test completed")
         end
@@ -158,8 +158,8 @@ _M.tests = {
             
             -- Verify successful worker initialization
             ngx.log(ngx.DEBUG, "[TEST] Verifying worker initialization result: ok=" .. tostring(ok) .. ", err=" .. tostring(err))
-            test_utils.assert_true(ok, "Init worker phase should succeed")
-            test_utils.assert_nil(err, "No error should be present")
+            test_runner.assert_true(ok, "Init worker phase should succeed")
+            test_runner.assert_nil(err, "No error should be present")
             
             -- Verify worker registration
             local stats = ngx.shared.stats
@@ -169,8 +169,8 @@ _M.tests = {
             ngx.log(ngx.DEBUG, "[TEST] Verifying worker registration for worker_id: " .. worker_id)
             local worker_start_time = stats:get(worker_key)
             ngx.log(ngx.DEBUG, "[TEST] Worker start_time: " .. tostring(worker_start_time))
-            test_utils.assert_not_nil(worker_start_time, "Worker start time should be recorded")
-            test_utils.assert_type(worker_start_time, "number", "Worker start time should be a number")
+            test_runner.assert_not_nil(worker_start_time, "Worker start time should be recorded")
+            test_runner.assert_type(worker_start_time, "number", "Worker start time should be a number")
             
             ngx.log(ngx.DEBUG, "[TEST] Worker initialization test completed")
         end
@@ -185,7 +185,7 @@ _M.tests = {
             
             for _, phase in ipairs(phases) do
                 ngx.log(ngx.DEBUG, "[TEST] Testing " .. phase .. " phase handler")
-                test_utils.assert_not_nil(
+                test_runner.assert_not_nil(
                     phase_handlers[phase],
                     phase .. " phase handler should exist"
                 )
@@ -193,7 +193,7 @@ _M.tests = {
                 -- Execute the phase handler
                 ngx.log(ngx.DEBUG, "[TEST] Executing " .. phase .. " phase handler")
                 local ok, err = pcall(phase_handlers[phase])
-                test_utils.assert_true(ok, phase .. " phase handler should execute without errors")
+                test_runner.assert_true(ok, phase .. " phase handler should execute without errors")
                 if not ok then
                     ngx.log(ngx.ERR, "[TEST] Phase handler execution failed: " .. tostring(err))
                 end
@@ -223,7 +223,7 @@ _M.tests = {
             
             -- Verify initialization failure
             ngx.log(ngx.DEBUG, "[TEST] Verifying initialization failure: ok=" .. tostring(ok) .. ", err=" .. tostring(err))
-            test_utils.assert_false(ok, "Init should fail when middleware registration fails")
+            test_runner.assert_false(ok, "Init should fail when middleware registration fails")
             
             -- Restore original middleware registration
             ngx.log(ngx.DEBUG, "[TEST] Restoring original middleware registration")
@@ -245,7 +245,7 @@ _M.tests = {
             end
             
             local ok = phase_handlers.init()
-            test_utils.assert_false(ok, "Init should fail when service registration fails")
+            test_runner.assert_false(ok, "Init should fail when service registration fails")
             
             ngx.log(ngx.DEBUG, "[TEST] Service registration failure test completed")
         end
@@ -255,7 +255,7 @@ _M.tests = {
 _M.after_each = function()
     ngx.log(ngx.DEBUG, "[TEST] Executing after_each hook")
     teardown_mocks()
-    test_utils.reset_state()
+    test_runner.reset_state()
 
     ngx.log(ngx.DEBUG, "[TEST] after_each hook completed")
 end
