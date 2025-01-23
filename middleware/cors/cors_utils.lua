@@ -123,6 +123,7 @@ function _M.diff_configs(new_config, old_config)
     end
     
     -- Compare each field
+    compare_arrays(new_config.allow_protocols, old_config.allow_protocols, "allow_protocols")
     compare_arrays(new_config.allow_origins, old_config.allow_origins, "allow_origins")
     compare_arrays(new_config.allow_methods, old_config.allow_methods, "allow_methods")
     compare_arrays(new_config.allow_headers, old_config.allow_headers, "allow_headers")

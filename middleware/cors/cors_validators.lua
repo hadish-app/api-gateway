@@ -48,6 +48,20 @@ local function check_dangerous_characters(origin)
     return true
 end
 
+-- Check for allowed protocols
+local function check_allowed_protocols(origin)
+    local ctx = get_request_context()
+    ngx.log(ngx.DEBUG, string.format("[cors] Origin protocol validation started. origin=%s. %s", origin, ctx))
+    
+    local lower_origin = origin:lower()
+    for _, protocol in ipairs(constants.ALLOW_PROTOCOLS) do
+        if lower_origin:find(protocol, 1, true) then
+            ngx.log(ngx.DEBUG, string.format("[cors] Origin protocol validation completed. %s", ctx))
+            return true
+        end
+    end
+end
+
 -- Check for forbidden protocols
 local function check_forbidden_protocols(origin)
     local ctx = get_request_context()
@@ -77,8 +91,8 @@ local function validate_protocol_and_domain(origin)
         return false, nil
     end
     
-    if protocol ~= "https" then
-        ngx.log(ngx.WARN, string.format("[cors] Origin URL validation failed - non-HTTPS protocol. protocol=%s origin=%s. %s", 
+    if not check_allowed_protocols(protocol) then
+        ngx.log(ngx.WARN, string.format("[cors] Origin URL validation failed - non-allowed protocol. protocol=%s origin=%s. %s", 
             protocol, origin, ctx))
         return false, nil
     end
@@ -151,6 +165,7 @@ local function check_allowed_origins(origin, allowed_origins)
     end
     
     for _, allowed in ipairs(allowed_origins) do
+        ngx.log(ngx.DEBUG, string.format("[cors] Allowed origins matching: %s origin=%s", allowed, origin))
         if type(allowed) == "string" and 
            #allowed <= constants.MAX_ORIGIN_LENGTH and
            allowed == origin then

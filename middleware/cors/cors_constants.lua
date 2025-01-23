@@ -25,6 +25,7 @@ local cors_config = get_cached_config("cors")
 
 -- Log CORS configuration
 ngx.log(ngx.INFO, "[cors] Loading CORS configuration:")
+ngx.log(ngx.INFO, "[cors] allow_protocols: " .. cors_config.allow_protocols)
 ngx.log(ngx.INFO, "[cors] allow_origins: " .. cors_config.allow_origins)
 ngx.log(ngx.INFO, "[cors] allow_methods: " .. cors_config.allow_methods)
 ngx.log(ngx.INFO, "[cors] allow_headers: " .. cors_config.allow_headers)
@@ -68,6 +69,7 @@ local _M = {
         "about:", "blob:", "ftp:", "ws:", "wss:", 
         "gopher:", "chrome:", "chrome-extension:"
     },
+    ALLOW_PROTOCOLS = split_csv(cors_config.allow_protocols),
 
     -- Default configuration
     DEFAULT_CONFIG = {
@@ -76,7 +78,8 @@ local _M = {
         allow_headers = split_csv(cors_config.allow_headers),
         expose_headers = split_csv(cors_config.expose_headers) ,
         max_age = cors_config.max_age ,
-        allow_credentials = cors_config.allow_credentials
+        allow_credentials = cors_config.allow_credentials,
+        allow_protocols = split_csv(cors_config.allow_protocols)
     },
 
     -- Common headers that are always allowed
