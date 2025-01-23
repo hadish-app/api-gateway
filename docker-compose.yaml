@@ -14,19 +14,22 @@ services:
       - ./configs:/usr/local/openresty/nginx/conf:ro
       - ./modules:/usr/local/openresty/nginx/modules:ro
       - ./middleware:/usr/local/openresty/nginx/middleware:ro
+      - ./services:/usr/local/openresty/nginx/services:ro
       - ./tests:/usr/local/openresty/nginx/tests:ro
       - ./logs:/usr/local/openresty/nginx/logs
 
     develop:
       watch:
         - action: rebuild
+          path: ./configs
+        - action: rebuild
           path: ./modules
+        - action: rebuild
+          path: ./services
         - action: rebuild
           path: ./middleware
         - action: rebuild
           path: ./tests
-        - action: rebuild
-          path: ./configs
 
     # restart: unless-stopped
     networks:

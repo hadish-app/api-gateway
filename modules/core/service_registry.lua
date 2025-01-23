@@ -6,7 +6,7 @@ local cjson = require "cjson"
 local router = require "modules.core.router"
 
 -- Import service registry
-local service_registry = require "modules.services.registry"
+local service_registry = require "services.registry"
 
 -- Helper function to format route info
 local function format_route_info(route)

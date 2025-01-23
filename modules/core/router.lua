@@ -17,7 +17,7 @@ end
 
 -- Register a route handler
 function _M.register(path, service, method)
-    ngx.log(ngx.DEBUG, "Registering route - path: " .. path .. ", method: " .. method)
+    ngx.log(ngx.DEBUG, "[Router Module] Registering route - path: " .. path .. ", method: " .. method)
 
     -- Validate path parameter
     if not path then
@@ -37,11 +37,11 @@ function _M.register(path, service, method)
     -- If method is specified, register for specific method
     if method then
         routes[path][method:upper()] = service
-        ngx.log(ngx.DEBUG, "Registered route - path: " .. path .. ", method: " .. method:upper())
+        ngx.log(ngx.DEBUG, "[Router Module] Registered route - path: " .. path .. ", method: " .. method:upper())
     else
         -- If no method specified, use same handler for all methods
         routes[path]["ANY"] = service
-        ngx.log(ngx.DEBUG, "Registered route - path: " .. path .. ", method: ANY")
+        ngx.log(ngx.DEBUG, "[Router Module] Registered route - path: " .. path .. ", method: ANY")
     end
     
     return true
@@ -49,7 +49,7 @@ end
 
 -- Find matching route and handler
 function _M.match(uri, method)
-    ngx.log(ngx.DEBUG, "Matching route - uri: " .. uri .. ", method: " .. method)
+    ngx.log(ngx.DEBUG, "[Router Module] Matching route - uri: " .. uri .. ", method: " .. method)
 
     -- Get path segments
     local request_segments = split_path(uri)
@@ -59,11 +59,11 @@ function _M.match(uri, method)
         local handlers = routes[uri]
         -- Check for method-specific handler
         if handlers[method] then
-            ngx.log(ngx.DEBUG, "Matched route - uri: " .. uri .. ", method: " .. method)
+            ngx.log(ngx.DEBUG, "[Router Module] Matched route - uri: " .. uri .. ", method: " .. method)
             return handlers[method], uri
         -- Fall back to ANY method handler
         elseif handlers["ANY"] then
-            ngx.log(ngx.DEBUG, "Matched route - uri: " .. uri .. ", method: ANY")
+            ngx.log(ngx.DEBUG, "[Router Module] Matched route - uri: " .. uri .. ", method: ANY")
             return handlers["ANY"], uri
         end
     end
@@ -114,11 +114,11 @@ function _M.handle_request()
     local method = ngx.req.get_method()
     local uri = ngx.var.uri
     
-    ngx.log(ngx.DEBUG, "Handling request - method: " .. method .. ", uri: " .. uri)
+    ngx.log(ngx.DEBUG, "[Router Module] Handling request - method: " .. method .. ", uri: " .. uri)
 
     -- Find matching service
     local handler, matched_route = _M.match(uri, method)
-    ngx.log(ngx.DEBUG, "Matched service - uri: " .. uri .. ", method: " .. method)
+    ngx.log(ngx.DEBUG, "[Router Module] Matched service - uri: " .. uri .. ", method: " .. method)
 
     if not handler then
         -- Log detailed request information for debugging

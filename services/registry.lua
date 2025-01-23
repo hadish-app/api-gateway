@@ -1,7 +1,7 @@
 -- Service registry
 return {
     health = {
-        module = "modules.services.health",
+        module = "services.health",
         routes = {
             {
                 path = "/health",

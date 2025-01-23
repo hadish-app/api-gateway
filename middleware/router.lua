@@ -7,8 +7,8 @@ local content_middleware = {
     name = "router",
     enabled = true,
     phase = "content",
-    handle = function(self)
-        ngx.log(ngx.DEBUG, "Executing middleware: ", self.name)
+    handle = function(self)    
+        ngx.log(ngx.DEBUG, "[Router Middleware] Handling request")
         return router.handle_request()
     end
 }
