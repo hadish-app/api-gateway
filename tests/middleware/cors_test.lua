@@ -1,5 +1,5 @@
 local test_runner = require "modules.test.test_runner"
-local cors = require "middleware.cors.cors_init"
+local cors = require "middleware.cors.cors_main"
 local cjson = require "cjson"
 
 

@@ -1,6 +1,6 @@
 -- Integration test for health check
 local test_runner = require "modules.test.test_runner"
-local health = require "services.health"
+local health = require "services.health_service.handler"
 local cjson = require "cjson"
 
 local _M = {}

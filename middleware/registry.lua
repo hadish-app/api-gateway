@@ -7,7 +7,7 @@ return {
         phase = "content",
         priority = 100  -- Run after other content phase middleware
     },
-    
+
     request_id = {
         module = "middleware.request_id",
         enabled = true,
@@ -20,7 +20,7 @@ return {
     },
 
     cors = {
-        module = "middleware.cors.cors_init",
+        module = "middleware.cors.cors_main",
         enabled = true,
         multi_phase = true,
         phases = {
