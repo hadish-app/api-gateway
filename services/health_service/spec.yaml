@@ -1,0 +1,89 @@
+openapi: 3.0.0
+info:
+  title: Health Service API
+  version: 1.0.0
+  description: API endpoints for health checking services
+
+servers:
+  - url: http://localhost:8000
+    description: Local development server
+
+x-service-info:
+  id: health
+  module: services.health_service.handler
+  cors:
+    allowProtocols:
+      - http
+      - https
+    allowMethods:
+      - GET
+    allowHeaders:
+      - Content-Type
+    allowCredentials: false
+    maxAge: 3600
+    exposeHeaders:
+      - X-Request-ID
+
+paths:
+  /health:
+    get:
+      operationId: healthCheck
+      summary: Basic health check endpoint
+      tags:
+        - Health
+      responses:
+        "200":
+          description: Successful health check response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "healthy"
+      x-route-info:
+        id: health_check
+        handler: check
+      cors:
+        id: health_check
+        allowOrigins:
+          - http://wc.com
+        # Inherits other CORS settings from service level
+
+  /health/details:
+    get:
+      operationId: healthCheckDetailed
+      summary: Detailed health check endpoint
+      tags:
+        - Health
+      responses:
+        "200":
+          description: Detailed health check response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "healthy"
+                  details:
+                    type: object
+                    description: Detailed health information
+      x-route-info:
+        id: health_details
+        handler: check_detailed
+      cors:
+        id: health_details
+        allowOrigins:
+          - https://example.com
+        # Inherits other CORS settings from service level
+
+components:
+  schemas: {}
+  securitySchemes: {}
+
+tags:
+  - name: Health
+    description: Health check endpoints
