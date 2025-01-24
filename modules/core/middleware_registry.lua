@@ -25,7 +25,7 @@ end
 
 -- Register a single middleware
 local function register_middleware(name, config)
-    ngx.log(ngx.DEBUG, "[Middleware Registry] Registering middleware: ", name, ", config: ", cjson.encode(config))
+    ngx.log(ngx.DEBUG, "[Middleware Registry] Starting registration of middleware: ", name, ", config: ", cjson.encode(config))
     if config.multi_phase then
         -- Handle multi-phase middleware
         local middleware_module = require(config.module)
@@ -48,7 +48,7 @@ local function register_middleware(name, config)
             middleware.enabled = config.enabled or false
             middleware.phase = phase
             
-            ngx.log(ngx.DEBUG, "[Middleware Registry] Registering multi-phase middleware: ", name,
+            ngx.log(ngx.DEBUG, "[Middleware Registry] Completed registration of middleware: ", name,
                 ", phase: ", phase,
                 ", priority: ", middleware.priority,
                 ", enabled: ", tostring(middleware.enabled))
@@ -72,7 +72,7 @@ local function register_middleware(name, config)
         middleware_chain.use(middleware, middleware.name)
         middleware_chain.set_state(middleware.name, middleware.enabled)
         
-        ngx.log(ngx.DEBUG, "[Middleware Registry] Registered single-phase middleware: ", name,
+        ngx.log(ngx.DEBUG, "[Middleware Registry] Completed registration of middleware: ", name,
             ", priority: ", middleware.priority,
             ", phase: ", middleware.phase,
             ", enabled: ", tostring(middleware.enabled))
@@ -86,6 +86,7 @@ function _M.register()
     ngx.log(ngx.DEBUG, "[Middleware Registry] Registering all middlewares...")
     
     for name, config in pairs(middleware_registry) do
+        ngx.log(ngx.DEBUG, "[Middleware Registry] Registering middleware: ", name)
         local ok, err = register_middleware(name, config)
         if not ok then
             ngx.log(ngx.ERR, "[Middleware Registry] Failed to register middleware: ", name, ", error: ", err)

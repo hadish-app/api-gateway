@@ -1,5 +1,13 @@
 -- Middleware registry
 return {
+    router = {
+        module = "middleware.router",
+        enabled = true,
+        multi_phase = false,
+        phase = "content",
+        priority = 100  -- Run after other content phase middleware
+    },
+    
     request_id = {
         module = "middleware.request_id",
         enabled = true,
@@ -21,12 +29,4 @@ return {
             log = { priority = 20 }
         }
     },
-
-    router = {
-        module = "middleware.router",
-        enabled = true,
-        multi_phase = false,
-        phase = "content",
-        priority = 100  -- Run after other content phase middleware
-    }
 }
