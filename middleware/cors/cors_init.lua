@@ -1,4 +1,3 @@
-local middleware_chain = require "core.middleware_chain"
 local config = require "middleware.cors.cors_config"
 local handlers = require "middleware.cors.cors_handlers"
 
