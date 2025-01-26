@@ -12,16 +12,16 @@ x-service-info:
   id: health
   module: services.health_service.handler
   cors:
-    allowProtocols:
+    allow_protocols:
       - http
       - https
-    allowMethods:
+    allow_methods:
       - GET
-    allowHeaders:
+    allow_headers:
       - Content-Type
-    allowCredentials: false
-    maxAge: 3600
-    exposeHeaders:
+    allow_credentials: false
+    max_age: 3600
+    expose_headers:
       - X-Request-ID
 
 paths:
@@ -47,7 +47,7 @@ paths:
         handler: check
       cors:
         id: health_check
-        allowOrigins:
+        allow_origins:
           - http://wc.com
         # Inherits other CORS settings from service level
 
@@ -76,7 +76,7 @@ paths:
         handler: check_detailed
       cors:
         id: health_details
-        allowOrigins:
+        allow_origins:
           - https://example.com
         # Inherits other CORS settings from service level
 

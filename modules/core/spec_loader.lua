@@ -3,27 +3,51 @@ local lyaml = require "lyaml"
 local lfs = require "lfs"
 local _M = {}
 
--- Helper function to convert OpenAPI CORS to registry CORS format
-local function convert_cors_config(cors)
-    ngx.log(ngx.DEBUG, "[Spec Loader] Converting CORS config: ", cjson.encode(cors or {}))
+-- Helper function to merge CORS configurations
+local function merge_cors_configs(base_cors, override_cors)
+    if not override_cors then return base_cors end
+    if not base_cors then return override_cors end
     
-    if not cors then 
-        ngx.log(ngx.DEBUG, "[Spec Loader] No CORS config provided, returning nil")
-        return nil 
+    local merged = {}
+    for k, v in pairs(base_cors) do
+        merged[k] = v
     end
     
-    local converted = {
-        allow_protocols = cors.allowProtocols,
-        allow_methods = cors.allowMethods,
-        allow_headers = cors.allowHeaders,
-        allow_credentials = cors.allowCredentials,
-        max_age = cors.maxAge,
-        expose_headers = cors.exposeHeaders,
-        allow_origins = cors.allowOrigins
-    }
+    -- Override with route-specific settings
+    local converted_override = override_cors
+    for k, v in pairs(converted_override or {}) do
+        merged[k] = v
+    end
     
-    ngx.log(ngx.DEBUG, "[Spec Loader] Converted CORS config: ", cjson.encode(converted))
-    return converted
+    return merged
+end
+
+-- Helper function to recursively find spec files
+local function find_spec_files(dir)
+    ngx.log(ngx.DEBUG, "[Spec Loader] Scanning directory for spec files: ", dir)
+    local files = {}
+    
+    for entry in lfs.dir(dir) do
+        if entry ~= "." and entry ~= ".." then
+            local path = dir .. "/" .. entry
+            local attr = lfs.attributes(path)
+            
+            ngx.log(ngx.DEBUG, "[Spec Loader] Found entry: ", path, ", type: ", attr.mode)
+            
+            if attr.mode == "directory" then
+                -- Recursively scan subdirectories
+                local sub_files = find_spec_files(path)
+                for _, file in ipairs(sub_files) do
+                    table.insert(files, file)
+                end
+            elseif entry == "spec.yaml" then
+                ngx.log(ngx.DEBUG, "[Spec Loader] Found spec file: ", path)
+                table.insert(files, path)
+            end
+        end
+    end
+    
+    return files
 end
 
 -- Convert OpenAPI spec to registry format
@@ -63,7 +87,7 @@ function _M.convert_to_registry(spec_path)
     local service = {
         id = service_info.id,
         module = service_info.module,
-        cors = convert_cors_config(service_info.cors),
+        cors = service_info.cors,
         routes = {}
     }
     
@@ -94,11 +118,8 @@ function _M.convert_to_registry(spec_path)
                     -- Handle route-specific CORS
                     if operation.cors then
                         ngx.log(ngx.DEBUG, "[Spec Loader] Found route-specific CORS for ", route.id)
-                        route.cors = {
-                            id = operation.cors.id,
-                            allow_origins = operation.cors.allowOrigins
-                        }
-                        ngx.log(ngx.DEBUG, "[Spec Loader] Route CORS config: ", cjson.encode(route.cors))
+                        route.cors = merge_cors_configs(service.cors, operation.cors)
+                        ngx.log(ngx.DEBUG, "[Spec Loader] Merged route CORS config: ", cjson.encode(route.cors))
                     end
                     
                     ngx.log(ngx.DEBUG, "[Spec Loader] Adding route to service: ", cjson.encode(route))
@@ -114,34 +135,6 @@ function _M.convert_to_registry(spec_path)
     
     ngx.log(ngx.DEBUG, "[Spec Loader] Completed service conversion: ", cjson.encode(service))
     return service
-end
-
--- Helper function to recursively find spec files
-local function find_spec_files(dir)
-    ngx.log(ngx.DEBUG, "[Spec Loader] Scanning directory for spec files: ", dir)
-    local files = {}
-    
-    for entry in lfs.dir(dir) do
-        if entry ~= "." and entry ~= ".." then
-            local path = dir .. "/" .. entry
-            local attr = lfs.attributes(path)
-            
-            ngx.log(ngx.DEBUG, "[Spec Loader] Found entry: ", path, ", type: ", attr.mode)
-            
-            if attr.mode == "directory" then
-                -- Recursively scan subdirectories
-                local sub_files = find_spec_files(path)
-                for _, file in ipairs(sub_files) do
-                    table.insert(files, file)
-                end
-            elseif entry == "spec.yaml" then
-                ngx.log(ngx.DEBUG, "[Spec Loader] Found spec file: ", path)
-                table.insert(files, path)
-            end
-        end
-    end
-    
-    return files
 end
 
 -- Load all service specs from a directory
