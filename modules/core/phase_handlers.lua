@@ -158,18 +158,20 @@ function _M.init()
         return false
     end
     
-    -- Register components
+    -- Register services
+    ok, err = service_registry.register()
+    if not ok then
+        ngx.log(ngx.ERR, "Failed to register services: ", err)
+        return false
+    end
+
+    -- Register middlewares
     ok, err = middleware_registry.register()
     if not ok then
         ngx.log(ngx.ERR, "Failed to register middlewares: ", err)
         return false
     end
     
-    ok, err = service_registry.register()
-    if not ok then
-        ngx.log(ngx.ERR, "Failed to register services: ", err)
-        return false
-    end
     
     ngx.log(ngx.DEBUG, "Initialization phase completed successfully")
     return true

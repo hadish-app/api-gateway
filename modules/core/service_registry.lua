@@ -3,7 +3,7 @@ local _M = {}
 -- Local references
 local ngx = ngx
 local cjson = require "cjson"
-local router = require "modules.core.router"
+local route_registry = require "modules.core.route_registry"
 local spec_loader = require "modules.core.spec_loader"
 
 -- Helper function to format route info
@@ -24,19 +24,15 @@ local function register_service(name, config)
     
     -- Register each route
     for _, route in ipairs(config.routes) do
+
         -- Verify handler exists
         if not service[route.handler] then
             ngx.log(ngx.ERR, "Handler not found in service: ", route.handler)
             return nil, "Handler not found: " .. route.handler
         end
         
-        -- Create handler function that calls the service's handler
-        local handler = function()
-            return service[route.handler]()
-        end
-        
-        -- Register route with the router
-        local ok, err = router.register(route.path, handler, route.method)
+        -- Register route
+        local ok, err = route_registry.register(name, config.id or "unknown", route.id or "unknown", route.path, route.method, route.cors, service[route.handler])
         if not ok then
             ngx.log(ngx.ERR, "Failed to register route: ", format_route_info(route), ", error: ", err)
             return nil, "Failed to register route: " .. format_route_info(route)

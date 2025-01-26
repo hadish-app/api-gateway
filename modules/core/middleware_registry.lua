@@ -30,6 +30,16 @@ local function register_middleware(name, config)
         -- Handle multi-phase middleware
         local middleware_module = require(config.module)
         
+        if config.enabled and middleware_module.init then
+            ngx.log(ngx.DEBUG, "[Middleware Registry] Calling init function for middleware: ", name)
+            local ok, err = middleware_module.init()
+            if not ok then
+                ngx.log(ngx.ERR, "[Middleware Registry] Failed to initialize middleware: ", name, ", error: ", err)
+                return nil, "Failed to initialize middleware: " .. name
+            end
+            ngx.log(ngx.DEBUG, "[Middleware Registry] Middleware initialized successfully: ", name)
+        end
+
         -- Register each phase's middleware
         for phase, phase_config in pairs(config.phases) do
             if not PHASES[phase] then
@@ -64,11 +74,19 @@ local function register_middleware(name, config)
             ngx.log(ngx.ERR, "[Middleware Registry] Invalid phase for middleware: ", name, ", phase: ", config.phase)
             return nil, "Invalid phase: " .. config.phase
         end
-        
         local middleware = require(config.module)
         middleware.priority = config.priority or 100
         middleware.phase = config.phase
         middleware.enabled = config.enabled or false
+        if middleware.enabled and middleware.init then
+            ngx.log(ngx.DEBUG, "[Middleware Registry] Calling init function for middleware: ", name)
+            local ok, err = middleware.init()
+            if not ok then
+                ngx.log(ngx.ERR, "[Middleware Registry] Failed to initialize middleware: ", name, ", error: ", err)
+                return nil, "Failed to initialize middleware: " .. name
+            end
+            ngx.log(ngx.DEBUG, "[Middleware Registry] Middleware initialized successfully: ", name)
+        end
         middleware_chain.use(middleware, middleware.name)
         middleware_chain.set_state(middleware.name, middleware.enabled)
         
@@ -77,7 +95,6 @@ local function register_middleware(name, config)
             ", phase: ", middleware.phase,
             ", enabled: ", tostring(middleware.enabled))
     end
-    
     return true
 end
 

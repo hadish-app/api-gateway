@@ -48,7 +48,7 @@ paths:
       cors:
         id: health_check
         allow_origins:
-          - http://wc.com
+          - http://check.com
         # Inherits other CORS settings from service level
 
   /health/details:
@@ -77,7 +77,7 @@ paths:
       cors:
         id: health_details
         allow_origins:
-          - https://example.com
+          - https://details.com
         # Inherits other CORS settings from service level
 
 components:

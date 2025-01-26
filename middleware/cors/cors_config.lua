@@ -1,306 +1,197 @@
 local cjson = require "cjson"
-local constants = require "middleware.cors.cors_constants"
 local utils = require "middleware.cors.cors_utils"
 local ngx = ngx
+local cors_config_validator = require "middleware.cors.cors_config_validator"
+local route_registry = require "modules.core.route_registry"
 
--- Cache for computed values
-local cache = {
-    allowed_headers_map = {},
-    methods_str = nil,
-    headers_str = nil,
-    expose_headers_str = nil
+local _M = {
+    global = {},
+    routes = {}
 }
 
-local function format_validation_schema()
-    return {
-        allow_protocols = {
-            type = "array",
-            required = true,
-            non_empty = true,
-            description = "List of allowed protocols",
-            constraints = "Must be non-empty array. Use ['*'] for all protocols"
-        },
-        allow_origins = {
-            type = "array",
-            required = true,
-            non_empty = true,
-            description = "List of allowed origins",
-            constraints = "Must be non-empty array. Use ['*'] for all origins"
-        },
-        allow_methods = {
-            type = "array",
-            required = true,
-            non_empty = true,
-            description = "List of allowed HTTP methods",
-            constraints = "Must be non-empty array of valid HTTP methods"
-        },
-        allow_headers = {
-            type = "array",
-            required = true,
-            description = "List of allowed request headers",
-            constraints = "Must be array of header names"
-        },
-        allow_credentials = {
-            type = "boolean",
-            required = false,
-            description = "Whether to allow credentials",
-            constraints = "Cannot be true when allow_origins=['*']"
-        },
-        max_age = {
-            type = "number",
-            required = false,
-            description = "Preflight cache duration",
-            constraints = "Must be a positive number"
-        },
-        expose_headers = {
-            type = "array",
-            required = false,
-            description = "Headers exposed to browser",
-            constraints = "Must be array of header names"
-        }
+-- Static global cors configs
+-- These values are static and should not change due to security reasons
+local static_global_cors_configs = {
+    forbidden_chars = "[<>\"'\\%[%]%(%){};]",
+    control_chars = "[%z\1-\31\127-\255]",
+    forbidden_protocols = {
+        "javascript:", "data:", "vbscript:", "file:",
+        "about:", "blob:", "ftp:", "ws:", "wss:", 
+        "gopher:", "chrome:", "chrome-extension:"
     }
-end
+}
 
-local function format_schema_and_config(schema, config)
-    local lines = {
-        "Schema:",
-        "  allow_protocols:",
-        string.format("    type: %s", schema.allow_protocols.type),
-        string.format("    required: %s", schema.allow_protocols.required),
-        string.format("    non_empty: %s", schema.allow_protocols.non_empty),
-        string.format("    description: %s", schema.allow_protocols.description),
-        string.format("    constraints: %s", schema.allow_protocols.constraints),
-        "  allow_origins:",
-        string.format("    type: %s", schema.allow_origins.type),
-        string.format("    required: %s", schema.allow_origins.required),
-        string.format("    non_empty: %s", schema.allow_origins.non_empty),
-        string.format("    description: %s", schema.allow_origins.description),
-        string.format("    constraints: %s", schema.allow_origins.constraints),
-        "  allow_methods:",
-        string.format("    type: %s", schema.allow_methods.type),
-        string.format("    required: %s", schema.allow_methods.required),
-        string.format("    non_empty: %s", schema.allow_methods.non_empty),
-        string.format("    description: %s", schema.allow_methods.description),
-        string.format("    constraints: %s", schema.allow_methods.constraints),
-        "  allow_headers:",
-        string.format("    type: %s", schema.allow_headers.type),
-        string.format("    required: %s", schema.allow_headers.required),
-        string.format("    description: %s", schema.allow_headers.description),
-        string.format("    constraints: %s", schema.allow_headers.constraints),
-        "",
-        "Config to validate:",
-        string.format("  %s", cjson.encode(config))
+-- Cache fields mapping for string values that need to be cached
+local cache_fields = {
+    allow_origins = "allow_origins_str",
+    allow_methods = "allow_methods_str", 
+    allow_headers = "allow_headers_str",
+    expose_headers = "expose_headers_str",
+    allow_protocols = "allow_protocols_str",
+    common_headers = "common_headers_str"
+}
+
+-- Load default global config from config_cache shared dictionary
+local function load_default_global_config()
+    local section = "cors"
+    local config_cache = ngx.shared.config_cache
+    if not config_cache then
+        error("Failed to access config_cache shared dictionary")
+    end
+    
+    local json_str = config_cache:get(section)
+    if not json_str then
+        error("Configuration section not found in cache: " .. section)
+    end
+    
+    local config, err = cjson.decode(json_str)
+    if err then
+        error("Failed to decode cached config: " .. err)
+    end
+
+    local global_config = {
+        cache = {
+            allow_origins_str = config.allow_origins,
+            allow_methods_str = config.allow_methods,
+            allow_headers_str = config.allow_headers,
+            expose_headers_str = config.expose_headers,
+            allow_protocols_str = config.allow_protocols,
+            common_headers_str = config.common_headers,
+        },
+        allow_origins = utils.split_csv(config.allow_origins),
+        allow_methods = utils.split_csv(config.allow_methods),
+        allow_headers = utils.prepare_headers_map(utils.split_csv(config.allow_headers)),
+        expose_headers = utils.split_csv(config.expose_headers),
+        allow_protocols = utils.split_csv(config.allow_protocols),
+        common_headers = utils.prepare_headers_map(utils.split_csv(config.common_headers)),
+        max_age = config.max_age,
+        allow_credentials = config.allow_credentials,
+        max_origin_length = config.validation_max_origin_length,
+        max_subdomain_count = config.validation_max_subdomain_count,
+        max_subdomain_length = config.validation_max_subdomain_length,
+        forbidden_chars = static_global_cors_configs.forbidden_chars,
+        control_chars = static_global_cors_configs.control_chars,
+        forbidden_protocols = static_global_cors_configs.forbidden_protocols
     }
-    return table.concat(lines, "\n")
+
+    return global_config
 end
 
-local function validate_config(config)
-    local schema = format_validation_schema()
-    ngx.log(ngx.DEBUG, string.format("[cors] Config validation started | Schema: %s | Config: %s", 
-        cjson.encode(schema), cjson.encode(config)))
+-- Configures global CORS settings by merging default and custom configurations
+-- @param custom_global_config (table|nil) Optional custom configuration to override defaults
+-- @return table The final validated global configuration
+function _M.configure_global(custom_global_config)
+    -- Start configuration process and log debug message
+    ngx.log(ngx.DEBUG, "[cors] Starting global CORS configuration...")
     
-    -- Validate allow_protocols
-    if type(config.allow_protocols) ~= "table" or #config.allow_protocols == 0 then
-        local err = "allow_protocols must be a non-empty array"
-        ngx.log(ngx.ERR, string.format("[cors] Config validation failed | Field: allow_protocols | Error: %s | Expected: %s | Got: type=%s, value=%s, length=%s", 
-            err,
-            schema.allow_protocols.constraints,
-            type(config.allow_protocols),
-            type(config.allow_protocols) == "table" and cjson.encode(config.allow_protocols) or tostring(config.allow_protocols),
-            type(config.allow_protocols) == "table" and #config.allow_protocols or "n/a"
-        ))
-        return nil, err
-    end
-    
-    -- Validate allow_origins
-    if type(config.allow_origins) ~= "table" or #config.allow_origins == 0 then
-        local err = "allow_origins must be a non-empty array"
-        ngx.log(ngx.ERR, string.format("[cors] Config validation failed | Field: allow_origins | Error: %s | Expected: %s | Got: type=%s, value=%s, length=%s", 
-            err,
-            schema.allow_origins.constraints,
-            type(config.allow_origins),
-            type(config.allow_origins) == "table" and cjson.encode(config.allow_origins) or tostring(config.allow_origins),
-            type(config.allow_origins) == "table" and #config.allow_origins or "n/a"
-        ))
-        return nil, err
-    end
-    
-    -- Validate credentials with wildcard origin
-    if config.allow_credentials and config.allow_origins[1] == "*" then
-        local err = "cannot use credentials with wildcard origin"
-        ngx.log(ngx.ERR, string.format("[cors] Config validation failed | Field: allow_credentials | Error: %s | Constraint: %s | Got: allow_credentials=%s, allow_origins[1]=%s", 
-            err,
-            schema.allow_credentials.constraints,
-            tostring(config.allow_credentials),
-            config.allow_origins[1]
-        ))
-        return nil, err
-    end
-    
-    -- Validate allow_methods
-    if type(config.allow_methods) ~= "table" or #config.allow_methods == 0 then
-        local err = "allow_methods must be a non-empty array"
-        ngx.log(ngx.ERR, string.format("[cors] Config validation failed | Field: allow_methods | Error: %s | Expected: %s | Got: type=%s, value=%s, length=%s", 
-            err,
-            schema.allow_methods.constraints,
-            type(config.allow_methods),
-            type(config.allow_methods) == "table" and cjson.encode(config.allow_methods) or tostring(config.allow_methods),
-            type(config.allow_methods) == "table" and #config.allow_methods or "n/a"
-        ))
-        return nil, err
-    end
-    
-    -- Validate allow_headers
-    if type(config.allow_headers) ~= "table" then
-        local err = "allow_headers must be an array"
-        ngx.log(ngx.ERR, string.format("[cors] Config validation failed | Field: allow_headers | Error: %s | Expected: %s | Got: type=%s, value=%s", 
-            err,
-            schema.allow_headers.constraints,
-            type(config.allow_headers),
-            type(config.allow_headers) == "table" and cjson.encode(config.allow_headers) or tostring(config.allow_headers)
-        ))
-        return nil, err
-    end
-    
-    ngx.log(ngx.DEBUG, string.format("[cors] Config validation completed | allow_origins=%s | allow_methods=%s | allow_headers=%s | allow_credentials=%s | max_age=%s | expose_headers=%s", 
-        cjson.encode(config.allow_protocols),
-        cjson.encode(config.allow_origins),
-        cjson.encode(config.allow_methods),
-        cjson.encode(config.allow_headers),
-        tostring(config.allow_credentials),
-        tostring(config.max_age),
-        config.expose_headers and cjson.encode(config.expose_headers) or "nil"
-    ))
-    return config
-end
+    -- Load default configuration from shared dictionary
+    local default_global_config = load_default_global_config()
+    ngx.log(ngx.DEBUG, "[cors] Default global config loaded: " .. cjson.encode(default_global_config))
 
-local function update_cache(config)
-    ngx.log(ngx.DEBUG, string.format("[cors] Cache update started | Config: %s", cjson.encode(config)))
+    -- Initialize global config with defaults
+    local global_config = default_global_config
     
-    -- Update header maps
-    cache.allowed_headers_map = utils.prepare_headers_map(config.allow_headers)
-    
-    -- Cache string representations
-    cache.methods_str = utils.array_to_string(config.allow_methods)
-    cache.headers_str = utils.array_to_string(config.allow_headers)
-    cache.expose_headers_str = utils.array_to_string(config.expose_headers)
-    cache.protocols_str = utils.array_to_string(config.allow_protocols)
-    ngx.log(ngx.DEBUG, string.format("[cors] Cache update completed | Methods=%s | Headers=%s | Expose_headers=%s | Headers_map=%s | Protocols=%s", 
-        cache.methods_str or "nil",
-        cache.headers_str or "nil",
-        cache.expose_headers_str or "nil",
-        cjson.encode(cache.allowed_headers_map),
-        cache.protocols_str or "nil"
-    ))
-end
 
-local _M = {}
 
--- Current active configuration
-_M.current = utils.deep_clone(constants.DEFAULT_CONFIG)
+    -- If custom config provided, merge it with defaults
+    if custom_global_config then
+        ngx.log(ngx.DEBUG, "[cors] Custom global config provided: " .. cjson.encode(custom_global_config))
+        ngx.log(ngx.DEBUG, "[cors] Extending default global config with custom config")
+        
+        -- Cache reference to avoid repeated table lookups
+        local config_cache = global_config.cache
+        
+        -- Iterate through custom config and override defaults
+        for k, v in pairs(custom_global_config) do
+            if v ~= nil then
+                global_config[k] = v
+                -- Update cache fields for string values that need to be cached
+                local cache_field = cache_fields[k]
+                if cache_field then
+                    config_cache[cache_field] = table.concat(v, ",")
+                end
+                ngx.log(ngx.DEBUG, string.format("[cors] Added custom config %s=%s", k, tostring(v)))
+            end
+        end
+        ngx.log(ngx.INFO, "[cors] global config extended with custom config: " .. cjson.encode(global_config))
+    else
+        -- Log when using defaults only
+        ngx.log(ngx.INFO, "[cors] No custom config provided. Using default global config: " .. cjson.encode(global_config))
+    end
 
---- Completely replaces the current CORS configuration with a new one.
--- Use this when you want to start fresh with an entirely new configuration,
--- discarding the current settings.
--- @param user_config (table|nil) The new configuration to use. If nil, uses DEFAULT_CONFIG
--- @return table The new active configuration
--- @usage
--- -- Replace with custom config
--- cors.configure({
---   allow_origins = {"https://example.com"},
---   allow_methods = {"GET", "POST"}
--- })
---
--- -- Reset to defaults
--- cors.configure()
-function _M.configure(user_config)
-    ngx.log(ngx.INFO, string.format("[cors] CORS configuration started | Current=%s | New=%s", 
-        cjson.encode(_M.current),
-        user_config and cjson.encode(user_config) or "using defaults"
-    ))
-    
-    local config_to_use = user_config or constants.DEFAULT_CONFIG
-    
-    -- Validate configuration
-    local validated, err = validate_config(config_to_use)
+    -- Validate the merged configuration
+    ngx.log(ngx.DEBUG, "[cors] Validating configuration...")
+    local validated, err = cors_config_validator.validate_config(global_config)
     if not validated then
+        -- If validation fails, log error and throw exception
+        ngx.log(ngx.ERR, "[cors] Configuration validation failed: " .. err)
         error("Failed to validate CORS config: " .. err)
     end
+    ngx.log(ngx.DEBUG, "[cors] Configuration validation completed")
     
-    -- Update current configuration
-    _M.current = utils.deep_clone(validated)
-    
-    -- Update cache
-    update_cache(_M.current)
-    
-    -- Log changes
-    local changes = utils.diff_configs(_M.current, config_to_use)
+    -- Log differences between old and new configurations
+    local changes = utils.diff_configs(_M.global, global_config)
     ngx.log(ngx.INFO, string.format("[cors] CORS configuration completed | Status=Success | Changes=%s", changes))
     
-    return _M.current
+    -- Update module's global configuration with validated config
+    ngx.log(ngx.DEBUG, "[cors] Updating current configuration")
+    _M.global = global_config
+
+    -- Log successful update and return new config
+    ngx.log(ngx.INFO, "[cors] Global CORS configuration successfully updated")
+    return _M.global
 end
 
---- Updates parts of the current CORS configuration.
--- Use this when you want to modify specific settings while preserving
--- other existing configuration values.
--- @param user_config (table|nil) Table containing the fields to update. If nil, returns current config
--- @return table The updated active configuration
--- @usage
--- -- Update only specific fields
--- cors.update_config({
---   max_age = 3600,
---   allow_credentials = true
--- })
---
--- -- Get current config
--- local current = cors.update_config()
-function _M.update_config(user_config)
-    ngx.log(ngx.INFO, string.format("[cors] CORS update started | Current=%s | Updates=%s",
-        cjson.encode(_M.current),
-        user_config and cjson.encode(user_config) or "none"
-    ))
+function _M.configure(custom_global_config)
+    _M.configure_global(custom_global_config)
+    local routes = route_registry.get_routes()
+    for path, methods in pairs(routes) do
+        for method, route_info in pairs(methods) do
+            -- Merge global cors config with route_info.cors as route_cors_config
+            local route_cors_config = utils.deep_clone(_M.global)
+            
+            for k, v in pairs(route_info.cors) do
+                if v ~= nil then
+                    route_cors_config[k] = v
+                    -- Update cache fields for string values that need to be cached
+                    local cache_field = cache_fields[k]
+                    if cache_field then
+                        route_cors_config.cache[cache_field] = table.concat(v, ",")
+                    end
+                    -- Convert headers to maps
+                    if k == "common_headers" or k == "allow_headers" then
+                        route_cors_config[k] = utils.prepare_headers_map(v)
+                    else
+                        route_cors_config[k] = v
+                    end
+                end
+            end
 
-    if not user_config then
-        return _M.current
+            -- validate the route_cors_config
+            local validated, err = cors_config_validator.validate_config(route_cors_config)
+            if not validated then
+                ngx.log(ngx.ERR, "[cors] Route cors config validation failed: " .. err)
+                error("Failed to validate CORS config: " .. err)
+            end
+            
+            -- add the route_cors_config to _M.routes[path][method]
+            _M.routes[path] = _M.routes[path] or {}
+            _M.routes[path][method] = route_cors_config
+            
+        end
     end
-
-    -- Merge user config with current config
-    local merged_config = utils.deep_clone(_M.current)
-    for k, v in pairs(user_config) do
-        merged_config[k] = v
-    end
-
-    -- Validate merged configuration
-    local validated, err = validate_config(merged_config)
-    if not validated then
-        error("Failed to validate CORS config update: " .. err)
-    end
-
-    -- Update current configuration
-    _M.current = utils.deep_clone(validated)
-
-    -- Update cache
-    update_cache(_M.current)
-
-    -- Log changes
-    local changes = utils.diff_configs(_M.current, merged_config)
-    ngx.log(ngx.INFO, string.format("[cors] CORS update completed | Status=Success | Changes=%s", changes))
-
-    return _M.current
 end
 
--- Initialize cache with default config
-ngx.log(ngx.INFO, string.format("[cors] CORS initialization started | Source=Default configuration from constants | Config=%s", cjson.encode(constants.DEFAULT_CONFIG)))
+function _M.get_route_config(path, method)
+    ngx.log(ngx.DEBUG, string.format("[cors] get_route_config: path=%s, method=%s", path, method))
+    if not path or not method or not _M.routes[path] or not _M.routes[path][method] then
+        ngx.log(ngx.DEBUG, string.format("[cors] get_route_config: returning global config: %s", cjson.encode(_M.global)))
+        return _M.global
+    end
+    
+    ngx.log(ngx.DEBUG, string.format("[cors] got_route_config: %s", cjson.encode(_M.routes[path][method])))
 
-update_cache(constants.DEFAULT_CONFIG)
-
-ngx.log(ngx.INFO, string.format("[cors] CORS initialization completed | Status=Success | Active=%s | Cache=%s", 
-    cjson.encode(_M.current),
-    cjson.encode(cache)
-))
-
--- Export module
-_M.cache = cache
-_M.common_headers_map = constants.COMMON_HEADERS
+    return _M.routes[path][method]
+end
 
 return _M 

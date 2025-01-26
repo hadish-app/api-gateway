@@ -52,6 +52,15 @@ function _M.table_length(t)
     return count
 end
 
+function _M.split_csv(str)
+    local result = {}
+    if not str then return result end
+    for value in str:gmatch("[^,]+") do
+        result[#result + 1] = value:match("^%s*(.-)%s*$") -- trim whitespace
+    end
+    return result
+end
+
 -- Format array for display
 local function format_array(arr)
     if not arr then return "nil" end
@@ -60,7 +69,7 @@ local function format_array(arr)
 end
 
 -- Compare two configs and return a human-readable diff
-function _M.diff_configs(new_config, old_config)
+function _M.diff_configs( old_config, new_config)
     local changes = {}
     
     -- Helper function to compare arrays
@@ -147,6 +156,16 @@ function _M.diff_configs(new_config, old_config)
     end
     
     return "\n" .. table.concat(changes, "\n\n")
+end
+
+-- Helper function to convert comma-separated headers to map
+function _M.headers_to_map(headers_str)
+    local result = {}
+    if not headers_str then return result end
+    for header in headers_str:gmatch("[^,]+") do
+        result[header:match("^%s*(.-)%s*$"):lower()] = true
+    end
+    return result
 end
 
 return _M 
