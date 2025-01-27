@@ -66,7 +66,7 @@ local function handle_access(self)
     
     -- Check for incoming request ID
     local headers = ngx.req.get_headers()
-    local incoming_id = headers["X-Request-ID"]
+    local incoming_id = headers[config.header_name]
     ngx.log(ngx.DEBUG, "[Request ID] [access phase] Request ID from header: ", incoming_id)
     
     local request_id
@@ -110,7 +110,7 @@ local function handle_header_filter(self)
         return false  
     end
 
-    local existing_header = ngx.header["X-Request-ID"]
+    local existing_header = ngx.req.get_headers()[config.header_name]
     if existing_header then
         -- Validate existing header format
         if not _M.is_valid_uuid(existing_header) then
@@ -130,7 +130,6 @@ local function handle_header_filter(self)
                 " URI: ", ngx.var.request_uri,
                 " Host: ", ngx.var.host)
             ngx.status = ngx.HTTP_BAD_REQUEST
-            ngx.say("Invalid Request ID")
             return false
         end
         -- Header already set correctly, no need to set it again
@@ -165,7 +164,7 @@ local function handle_log(self)
         return false  
     end
 
-    local existing_header = ngx.header["X-Request-ID"]
+    local existing_header = ngx.req.get_headers()[config.header_name]
     if existing_header then
         -- Validate existing header format
         if not _M.is_valid_uuid(existing_header) then
@@ -185,7 +184,6 @@ local function handle_log(self)
                 " URI: ", ngx.var.request_uri,
                 " Host: ", ngx.var.host)
             ngx.status = ngx.HTTP_BAD_REQUEST
-            ngx.say("Invalid Request ID")
             return false
         end
         -- Header already set correctly, no need to set it again

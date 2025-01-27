@@ -182,6 +182,40 @@ function _M.configure(custom_global_config)
     end
 end
 
+function _M.update_route_config(path, method, route_cors_config)
+    _M.routes[path] = _M.routes[path] or {}
+    _M.routes[path][method] = _M.routes[path][method] or {}
+
+    -- Create a new config by deep cloning the global config
+    local new_config = utils.deep_clone(_M.global)
+    
+    -- Override with route-specific settings
+    for k, v in pairs(route_cors_config) do
+        if k == "common_headers" or k == "allow_headers" then
+            new_config[k] = utils.prepare_headers_map(v)
+        else
+            new_config[k] = v
+        end
+        
+        -- Update cache fields for string values
+        local cache_field = cache_fields[k]
+        if cache_field and type(v) == "table" then
+            new_config.cache = new_config.cache or {}
+            new_config.cache[cache_field] = table.concat(v, ",")
+        end
+    end
+    
+    -- Validate the new configuration
+    local validated, err = cors_config_validator.validate_config(new_config)
+    if not validated then
+        ngx.log(ngx.ERR, "[cors] Route cors config validation failed: " .. err)
+        error("Failed to validate CORS config: " .. err)
+    end
+    
+    -- Store the validated configuration
+    _M.routes[path][method] = new_config
+end
+
 function _M.get_route_config(path, method)
     ngx.log(ngx.DEBUG, string.format("[cors] get_route_config: path=%s, method=%s", path, method))
     if not path or not method or not _M.routes[path] or not _M.routes[path][method] then

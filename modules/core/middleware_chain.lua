@@ -251,7 +251,6 @@ function _M.run_chain(phase)
     if not ok then
         ngx.log(ngx.ERR, "Middleware chain error in phase ", phase, ": ", err)
         ngx.status = 500
-        ngx.say("Internal Server Error")
         return ngx.exit(ngx.HTTP_INTERNAL_SERVER_ERROR)
     end
     

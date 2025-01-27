@@ -5,6 +5,14 @@ local _M = {}
 -- Store original functions
 local original_ngx_status
 local original_ngx_exit
+local original_ngx_ctx
+local original_ngx_shared
+local original_req_get_headers
+local original_req_get_method
+local original_req_get_uri_args
+local original_req_get_post_args
+local original_req_read_body
+local original_req_get_body_data
 local mock_status = 200
 
 -- Mock state tracking
@@ -78,6 +86,12 @@ _M.COLORS = {
 function _M.setup_mocks()
     ngx.log(ngx.DEBUG, "[MOCK] Setting up ngx mocks")
     
+    -- Store original ctx and shared
+    ngx.log(ngx.DEBUG, "[MOCK] Storing original ngx.ctx and ngx.shared")
+    original_ngx_ctx = ngx.ctx
+    original_ngx_shared = ngx.shared
+    ngx.ctx = {}
+    
     -- Setup status mock
     ngx.log(ngx.DEBUG, "[MOCK] Setting up ngx.status mock")
     original_ngx_status = getmetatable(ngx)
@@ -95,6 +109,13 @@ function _M.setup_mocks()
     
     -- Setup request mocks
     ngx.log(ngx.DEBUG, "[MOCK] Setting up ngx.req mocks")
+    original_req_get_headers = ngx.req.get_headers
+    original_req_get_method = ngx.req.get_method
+    original_req_get_uri_args = ngx.req.get_uri_args
+    original_req_get_post_args = ngx.req.get_post_args
+    original_req_read_body = ngx.req.read_body
+    original_req_get_body_data = ngx.req.get_body_data
+    
     ngx.req.get_headers = function()
         ngx.log(ngx.DEBUG, "[MOCK] Getting request headers: " .. cjson.encode(mock_headers))
         return mock_headers
@@ -143,6 +164,50 @@ function _M.teardown_mocks()
         ngx.exit = original_ngx_exit
     end
     
+    -- Restore ctx and shared
+    if original_ngx_ctx then
+        ngx.log(ngx.DEBUG, "[MOCK] Restoring original ngx.ctx")
+        ngx.ctx = original_ngx_ctx
+    end
+    
+    if original_ngx_shared then
+        ngx.log(ngx.DEBUG, "[MOCK] Restoring original ngx.shared")
+        ngx.shared = original_ngx_shared
+    end
+    
+    -- Restore request functions
+    if original_req_get_headers then
+        ngx.log(ngx.DEBUG, "[MOCK] Restoring original ngx.req.get_headers")
+        ngx.req.get_headers = original_req_get_headers
+    end
+    
+    if original_req_get_method then
+        ngx.log(ngx.DEBUG, "[MOCK] Restoring original ngx.req.get_method")
+        ngx.req.get_method = original_req_get_method
+    end
+    
+    if original_req_get_uri_args then
+        ngx.log(ngx.DEBUG, "[MOCK] Restoring original ngx.req.get_uri_args")
+        ngx.req.get_uri_args = original_req_get_uri_args
+    end
+    
+    if original_req_get_post_args then
+        ngx.log(ngx.DEBUG, "[MOCK] Restoring original ngx.req.get_post_args")
+        ngx.req.get_post_args = original_req_get_post_args
+    end
+    
+    if original_req_read_body then
+        ngx.log(ngx.DEBUG, "[MOCK] Restoring original ngx.req.read_body")
+        ngx.req.read_body = original_req_read_body
+    end
+    
+    if original_req_get_body_data then
+        ngx.log(ngx.DEBUG, "[MOCK] Restoring original ngx.req.get_body_data")
+        ngx.req.get_body_data = original_req_get_body_data
+    end
+
+    
+    
     -- Reset tracking
     _M.last_exit_code = nil
     
@@ -173,16 +238,10 @@ function _M.reset_state()
     mock_body = ""
     mock_status = 200
     _M.last_exit_code = nil
-    ngx.ctx = {}
+    ngx.ctx = original_ngx_ctx
     ngx.header = {}
-    
-    if ngx.shared then
-        for dict_name, dict in pairs(ngx.shared) do
-            dict:flush_all()
-            ngx.log(ngx.DEBUG, "[STATE] Flushed shared dict: " .. dict_name)
-        end
-    end
-    
+    -- log ngx.ctx
+    ngx.log(ngx.DEBUG, "[STATE] ngx.ctx: " .. cjson.encode(ngx.ctx))    
     ngx.log(ngx.DEBUG, "[STATE] State reset completed")
 end
 
