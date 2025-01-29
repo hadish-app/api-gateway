@@ -5,6 +5,9 @@ local _M = {}
 local global_middleware = {}  -- For all routes
 local route_middleware = {}   -- Per-route middleware
 
+-- Context key for terminated middleware
+local TERMINATED_KEY = "terminated_middleware"
+
 -- Helper function to validate middleware
 local function validate_middleware(handler, name)
     if type(handler) ~= "table" then
@@ -216,13 +219,24 @@ end
 function _M.run_chain(phase)
     local uri = ngx.var.uri
     local chain = _M.get_chain(uri, phase)
+    
     ngx.log(ngx.DEBUG, "Middleware chain for phase: ", phase, " chain length: ", #chain)
+
+    -- Initialize terminated middleware tracking if not exists
+    ngx.ctx[TERMINATED_KEY] = ngx.ctx[TERMINATED_KEY] or {}
+    local terminated = ngx.ctx[TERMINATED_KEY]
 
     local ok, err = pcall(function()
         for _, middleware in ipairs(chain) do
             -- Skip disabled middleware
             if not middleware.enabled then
                 ngx.log(ngx.DEBUG, "Skipping disabled middleware: ", middleware.name)
+                goto continue
+            end
+
+            -- Skip if this middleware was terminated in a previous phase
+            if phase ~= "log" and terminated[middleware.name] then
+                ngx.log(ngx.DEBUG, "Skipping terminated middleware: ", middleware.name)
                 goto continue
             end
             
@@ -235,10 +249,10 @@ function _M.run_chain(phase)
                 error("Middleware " .. middleware.name .. " failed: " .. tostring(result))
             end
             
-            -- If handler returns false, stop the chain
+            -- If handler returns false, mark only this middleware as terminated
             if result == false then
-                ngx.log(ngx.DEBUG, "Middleware chain stopped by: ", middleware.name)
-                return false
+                ngx.log(ngx.DEBUG, "Middleware terminated: ", middleware.name)
+                terminated[middleware.name] = true
             end
             
             ::continue::
@@ -253,13 +267,13 @@ function _M.run_chain(phase)
         ngx.status = 500
         return ngx.exit(ngx.HTTP_INTERNAL_SERVER_ERROR)
     end
-    
-    -- If chain returns false, stop processing
-    if err == false then
-        return ngx.exit(ngx.HTTP_OK)
+
+    -- Clean up terminated middleware tracking in log phase
+    if phase == "log" then
+        ngx.ctx[TERMINATED_KEY] = nil
     end
     
-    return true
+    return err
 end
 
 return _M
