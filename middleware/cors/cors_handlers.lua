@@ -14,13 +14,60 @@ local function set_error_response(cors_ctx, status, err_msg, details)
     ngx.log(ngx.ERR, string.format("[cors] %s", cors_ctx.error_message))
 end
 
+local function check_credentials(cors_ctx)
+    local has_credentials = false
+    
+    -- Check for Cookie header (credentials)
+    if cors_ctx.headers["Cookie"] then
+        has_credentials = true
+        ngx.log(ngx.DEBUG, string.format("[cors] Request contains Cookie credentials. %s", cors_ctx.log_context))
+    end
+    
+    -- Check for Authorization header (HTTP authentication)
+    if cors_ctx.headers["Authorization"] then
+        has_credentials = true
+        ngx.log(ngx.DEBUG, string.format("[cors] Request contains Authorization credentials. %s", cors_ctx.log_context))
+    end
+    
+    -- Check for client certificates
+    if ngx.var.ssl_client_verify == "SUCCESS" then
+        has_credentials = true
+        ngx.log(ngx.DEBUG, string.format("[cors] Request contains client certificate credentials. %s", cors_ctx.log_context))
+    end
+    
+    return has_credentials
+end
+
 local function validate_origin(cors_ctx)
     ngx.log(ngx.DEBUG, string.format("[cors] Origin validation started. origin=%s. %s", 
         cors_ctx.origin, cors_ctx.log_context))
     
+    -- Check if origin is present and valid
+    if not cors_ctx.origin or cors_ctx.origin == "" then
+        set_error_response(cors_ctx, ngx.HTTP_FORBIDDEN, "Missing or empty Origin header", "Origin header is required for CORS requests")
+        return false
+    end
+    
+    -- Check if origin is allowed
     if not validators.is_origin_allowed(cors_ctx) then
         set_error_response(cors_ctx, ngx.HTTP_FORBIDDEN, "Origin not allowed", cors_ctx.origin)
         return false
+    end
+    
+    if cors_ctx.has_credentials then
+        -- If request has credentials, wildcard origin is not allowed
+        if cors_ctx.origin == "*" or cors_ctx.config.allow_origin == "*" then
+            set_error_response(cors_ctx, ngx.HTTP_FORBIDDEN, 
+                "Invalid CORS configuration", 
+                "Wildcard origin not allowed with credentials")
+            return false
+        end
+        
+        -- If request has credentials but they're not allowed
+        if not cors_ctx.config.allow_credentials then
+            -- Don't reject the request, just don't send Access-Control-Allow-Credentials
+            ngx.log(ngx.DEBUG, string.format("[cors] Credentials present but not allowed. %s", cors_ctx.log_context))
+        end
     end
     
     ngx.log(ngx.DEBUG, string.format("[cors] Origin validation successful. %s", cors_ctx.log_context))
@@ -109,15 +156,22 @@ end
 local function handle_preflight_response(cors_ctx)
     ngx.log(ngx.DEBUG, string.format("[cors] Setting preflight response headers. %s", cors_ctx.log_context))
     
+    -- Set required CORS headers
     ngx.header["Access-Control-Allow-Origin"] = validators.sanitize_header(cors_ctx.origin)
     ngx.header["Access-Control-Allow-Methods"] = cors_ctx.config.cache.allow_methods_str
     ngx.header["Access-Control-Allow-Headers"] = cors_ctx.config.cache.allow_headers_str
     ngx.header["Access-Control-Max-Age"] = cors_ctx.config.max_age
     ngx.header["Vary"] = "Origin, Access-Control-Request-Method, Access-Control-Request-Headers"
     
-    if cors_ctx.config.allow_credentials then
+    -- Set credentials header if credentials are allowed
+    if cors_ctx.has_credentials and cors_ctx.config.allow_credentials then
         ngx.header["Access-Control-Allow-Credentials"] = "true"
     end
+    
+    -- Set security headers
+    ngx.header["X-Content-Type-Options"] = "nosniff"
+    ngx.header["X-Frame-Options"] = "DENY"
+    ngx.header["X-XSS-Protection"] = "1; mode=block"
     
     ngx.status = ngx.HTTP_NO_CONTENT
     ngx.header["Content-Length"] = 0
@@ -127,16 +181,24 @@ end
 local function handle_cors_response(cors_ctx)
     ngx.log(ngx.DEBUG, string.format("[cors] Setting CORS response headers. %s", cors_ctx.log_context))
     
+    -- Set required CORS headers
     ngx.header["Access-Control-Allow-Origin"] = validators.sanitize_header(cors_ctx.origin)
     ngx.header["Vary"] = "Origin"
     
+    -- Set exposed headers if configured
     if cors_ctx.config.cache.expose_headers_str then
         ngx.header["Access-Control-Expose-Headers"] = cors_ctx.config.cache.expose_headers_str
     end
     
-    if cors_ctx.config.allow_credentials then
+    -- Set credentials header if credentials are allowed
+    if cors_ctx.has_credentials and cors_ctx.config.allow_credentials then
         ngx.header["Access-Control-Allow-Credentials"] = "true"
     end
+    
+    -- Set security headers
+    ngx.header["X-Content-Type-Options"] = "nosniff"
+    ngx.header["X-Frame-Options"] = "DENY"
+    ngx.header["X-XSS-Protection"] = "1; mode=block"
 end
 
 local function get_cors_context()
@@ -176,8 +238,12 @@ local function get_cors_context()
         headers = headers,
         config = config.get_route_config(path, method),
         log_context = log_context,
-        validation_failed = false
+        validation_failed = false,
+        has_credentials = false
     }
+    
+    -- Check for credentials
+    cors_ctx.has_credentials = check_credentials(cors_ctx)
     
     ngx.log(ngx.DEBUG, string.format("[cors] Created CORS context: %s", cjson.encode(cors_ctx)))
     return cors_ctx
@@ -228,16 +294,16 @@ local function handle_header_filter()
     ngx.log(ngx.DEBUG, "[cors] Header filter started")
     local cors_ctx = ngx.ctx.cors
     
-    if not cors_ctx or not cors_ctx.is_cors then
-        ngx.log(ngx.DEBUG, string.format("[cors] Not a CORS request - skipping headers. %s", 
-            cors_ctx and cors_ctx.log_context or ""))
-        return true
-    end
-    
-    -- Add security headers
+    -- Add security headers for ALL requests
     ngx.header["X-Content-Type-Options"] = "nosniff"
     ngx.header["X-Frame-Options"] = "DENY"
     ngx.header["X-XSS-Protection"] = "1; mode=block"
+    
+    if not cors_ctx or not cors_ctx.is_cors then
+        ngx.log(ngx.DEBUG, string.format("[cors] Not a CORS request - skipping CORS headers. %s", 
+            cors_ctx and cors_ctx.log_context or ""))
+        return true
+    end
     
     -- Handle failed validations
     if cors_ctx.validation_failed then
@@ -280,9 +346,10 @@ local function handle_log()
                 cors_ctx.log_context
             ))
         else
-            ngx.log(ngx.INFO, string.format("[cors] Request completed successfully. origin=%s is_preflight=%s. %s",
+            ngx.log(ngx.INFO, string.format("[cors] Request completed successfully. origin=%s is_preflight=%s has_credentials=%s. %s",
                 cors_ctx.origin or "none",
                 tostring(cors_ctx.is_preflight),
+                tostring(cors_ctx.has_credentials),
                 cors_ctx.log_context
             ))
         end
