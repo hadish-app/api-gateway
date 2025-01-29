@@ -39,7 +39,7 @@ function _M.format_cors_error(message, details)
         "Client IP: " .. ngx.var.remote_addr
     }
     if details then
-        table.insert(parts, "Details: " .. details)
+        table.insert(parts, "Details: " .. cjson.encode(details))
     end
     return table.concat(parts, ", ")
 end

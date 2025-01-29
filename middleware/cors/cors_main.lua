@@ -6,7 +6,7 @@ local _M = {}
 
 -- Create middleware handlers
 local access_middleware = {
-    name = "cors_access",
+    name = "cors",
     routes = {},    -- Global middleware
     enabled = true,
     phase = "access",
@@ -14,7 +14,7 @@ local access_middleware = {
 }
 
 local header_filter_middleware = {
-    name = "cors_header_filter",
+    name = "cors",
     routes = {},    -- Global middleware
     enabled = true,
     phase = "header_filter",
@@ -22,7 +22,7 @@ local header_filter_middleware = {
 }
 
 local log_middleware = {
-    name = "cors_log",
+    name = "cors",
     routes = {},    -- Global middleware
     enabled = true,
     phase = "log",

@@ -24,6 +24,7 @@ local validators = {
         ngx.log(ngx.DEBUG, string.format("[cors] config.global: %s", cjson.encode(config.global)))
         
         if not origin or 
+           origin == "" or
            origin == "null" or 
            #origin > max_length or 
            type(origin) ~= "string" or 
@@ -32,6 +33,8 @@ local validators = {
             local reason
             if not origin then
                 reason = "origin is nil"
+            elseif origin == "" then
+                reason = "origin is empty string"
             elseif origin == "null" then
                 reason = "origin is 'null'"
             elseif #origin > max_length then
