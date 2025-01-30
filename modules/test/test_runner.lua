@@ -22,6 +22,31 @@ local mock_uri = "/"
 local mock_uri_args = {}
 local mock_post_args = {}
 local mock_body = ""
+local response_headers = {}
+
+-- Add to the original functions storage
+local original_ngx_header
+
+-- Create case-insensitive header handler
+local header_handler = {
+    __index = function(t, k)
+        -- Convert header name to lowercase for lookup
+        k = tostring(k):lower()
+        return response_headers[k]
+    end,
+    __newindex = function(t, k, v)
+        -- Store header with lowercase key
+        k = tostring(k):lower()
+        response_headers[k] = v
+    end,
+    __pairs = function()
+        return next, response_headers
+    end
+}
+
+-- Create header mock table
+local header_mock = {}
+setmetatable(header_mock, header_handler)
 
 _M = {
     last_exit_code = nil,  -- Track the last exit code called
@@ -85,6 +110,16 @@ _M.COLORS = {
 -- Setup and teardown ngx mocks
 function _M.setup_mocks()
     ngx.log(ngx.DEBUG, "[MOCK] Setting up ngx mocks")
+    
+    -- Store original values
+    original_ngx_ctx = ngx.ctx
+    original_ngx_shared = ngx.shared
+    original_ngx_header = ngx.header  -- Store original header
+    
+    -- Initialize new context and header mock
+    ngx.ctx = {}
+    response_headers = {}  -- Reset response headers
+    ngx.header = header_mock
     
     -- Store original ctx and shared
     ngx.log(ngx.DEBUG, "[MOCK] Storing original ngx.ctx and ngx.shared")
@@ -152,9 +187,15 @@ end
 function _M.teardown_mocks()
     ngx.log(ngx.DEBUG, "[MOCK] Tearing down ngx mocks")
     
+    -- Restore header mock
+    if original_ngx_header then
+        ngx.log(ngx.DEBUG, "[MOCK] Restoring original ngx.header")
+        ngx.header = original_ngx_header
+    end
+    
     -- Restore status mock
     if original_ngx_status then
-        ngx.log(ngx.DEBUG, "[MOCK] Restoring original ngx.status: " .. tostring(original_ngx_status))
+        ngx.log(ngx.DEBUG, "[MOCK] Restoring original ngx.status")
         setmetatable(ngx, original_ngx_status)
     end
     
@@ -227,7 +268,7 @@ function _M.reset_state()
         ", post_args=" .. cjson.encode(mock_post_args) ..
         ", body=" .. tostring(mock_body) ..
         ", ctx=" .. cjson.encode(ngx.ctx) .. 
-        ", response_headers=" .. cjson.encode(ngx.header))
+        ", response_headers=" .. cjson.encode(response_headers))
     
     -- Reset all mock states
     mock_headers = {}
@@ -238,22 +279,27 @@ function _M.reset_state()
     mock_body = ""
     mock_status = 200
     _M.last_exit_code = nil
-    ngx.ctx = original_ngx_ctx
-    ngx.header = {}
-    -- log ngx.ctx
-    ngx.log(ngx.DEBUG, "[STATE] ngx.ctx: " .. cjson.encode(ngx.ctx))    
-    ngx.log(ngx.DEBUG, "[STATE] State reset completed")
+    ngx.ctx = {}
+    response_headers = {}
+    ngx.header = header_mock
+    
+    -- Reset response headers separately from the mock
+    response_headers = {}
+    
+    ngx.log(ngx.DEBUG, "[STATE] State reset completed: " .. cjson.encode(ngx.header))
 end
 
 -- Core assertions
 function _M.assert_equals(expected, actual, message)
     if expected == actual then
         ngx.say(_M.COLORS.GREEN .. "✓" .. _M.COLORS.RESET .. " " .. message)
+        ngx.ctx.test_successes = (ngx.ctx.test_successes or 0) + 1
         return true
     else
         ngx.say(_M.COLORS.RED .. "✗" .. _M.COLORS.RESET .. " " .. message)
         ngx.say("  Expected: " .. tostring(expected))
         ngx.say("  Got: " .. tostring(actual))
+        ngx.ctx.test_failures = (ngx.ctx.test_failures or 0) + 1
         return false
     end
 end
@@ -261,11 +307,13 @@ end
 function _M.assert_not_equals(expected, actual, message)
     if expected ~= actual then
         ngx.say(_M.COLORS.GREEN .. "✓" .. _M.COLORS.RESET .. " " .. message)
+        ngx.ctx.test_successes = (ngx.ctx.test_successes or 0) + 1
         return true
     else
         ngx.say(_M.COLORS.RED .. "✗" .. _M.COLORS.RESET .. " " .. message)
         ngx.say("  Expected not to equal: " .. tostring(expected))
         ngx.say("  Got: " .. tostring(actual))
+        ngx.ctx.test_failures = (ngx.ctx.test_failures or 0) + 1
         return false
     end
 end
@@ -273,10 +321,12 @@ end
 function _M.assert_not_nil(value, message)
     if value ~= nil then
         ngx.say(_M.COLORS.GREEN .. "✓" .. _M.COLORS.RESET .. " " .. message)
+        ngx.ctx.test_successes = (ngx.ctx.test_successes or 0) + 1
         return true
     else
         ngx.say(_M.COLORS.RED .. "✗" .. _M.COLORS.RESET .. " " .. message)
         ngx.say("  Expected value to not be nil")
+        ngx.ctx.test_failures = (ngx.ctx.test_failures or 0) + 1
         return false
     end
 end
@@ -284,10 +334,12 @@ end
 function _M.assert_nil(value, message)
     if value == nil then
         ngx.say(_M.COLORS.GREEN .. "✓" .. _M.COLORS.RESET .. " " .. message)
+        ngx.ctx.test_successes = (ngx.ctx.test_successes or 0) + 1
         return true
     else
         ngx.say(_M.COLORS.RED .. "✗" .. _M.COLORS.RESET .. " " .. message)
         ngx.say("  Expected nil but got: " .. tostring(value))
+        ngx.ctx.test_failures = (ngx.ctx.test_failures or 0) + 1
         return false
     end
 end
@@ -295,10 +347,12 @@ end
 function _M.assert_true(value, message)
     if value == true then
         ngx.say(_M.COLORS.GREEN .. "✓" .. _M.COLORS.RESET .. " " .. message)
+        ngx.ctx.test_successes = (ngx.ctx.test_successes or 0) + 1
         return true
     else
         ngx.say(_M.COLORS.RED .. "✗" .. _M.COLORS.RESET .. " " .. message)
         ngx.say("  Expected true but got: " .. tostring(value))
+        ngx.ctx.test_failures = (ngx.ctx.test_failures or 0) + 1
         return false
     end
 end
@@ -306,10 +360,12 @@ end
 function _M.assert_false(value, message)
     if value == false then
         ngx.say(_M.COLORS.GREEN .. "✓" .. _M.COLORS.RESET .. " " .. message)
+        ngx.ctx.test_successes = (ngx.ctx.test_successes or 0) + 1
         return true
     else
         ngx.say(_M.COLORS.RED .. "✗" .. _M.COLORS.RESET .. " " .. message)
         ngx.say("  Expected false but got: " .. tostring(value))
+        ngx.ctx.test_failures = (ngx.ctx.test_failures or 0) + 1
         return false
     end
 end
@@ -572,6 +628,9 @@ function _M.run_tests(path)
     local total_tests = 0
     local total_passed = 0
     local total_failed = 0
+    local total_assertions = 0
+    local total_assertions_passed = 0
+    local total_assertions_failed = 0
     local failed_tests = {}
     
     -- Run each test file
@@ -614,11 +673,18 @@ function _M.run_tests(path)
         local suite_total = 0
         local suite_passed = 0
         local suite_failed = 0
+        local assertion_total = 0
+        local assertion_passed = 0
+        local assertion_failed = 0
         
         for _, test in ipairs(test_module.tests or {}) do
             suite_total = suite_total + 1
             ngx.log(ngx.DEBUG, "[TEST_RUNNER] Running test: " .. test.name)
             ngx.say("\nTest: " .. test.name)
+            
+            -- Reset test counters
+            ngx.ctx.test_failures = 0
+            ngx.ctx.test_successes = 0
             
             -- Run before_each
             if before_each then
@@ -633,12 +699,20 @@ function _M.run_tests(path)
             
             -- Run test
             local ok, err = pcall(test.func)
-            if ok then
+            
+            -- Update assertion statistics
+            assertion_total = assertion_total + (ngx.ctx.test_successes or 0) + (ngx.ctx.test_failures or 0)
+            assertion_failed = assertion_failed + (ngx.ctx.test_failures or 0)
+            assertion_passed = assertion_passed + (ngx.ctx.test_successes or 0)
+            
+            if ok and ngx.ctx.test_failures == 0 then
                 suite_passed = suite_passed + 1
             else
                 suite_failed = suite_failed + 1
-                ngx.log(ngx.ERR, "[TEST_RUNNER] Test failed: " .. tostring(err))
-                ngx.say(_M.COLORS.RED .. "Error: " .. err .. _M.COLORS.RESET)
+                if not ok then
+                    ngx.log(ngx.ERR, "[TEST_RUNNER] Test failed: " .. tostring(err))
+                    ngx.say(_M.COLORS.RED .. "Error: " .. err .. _M.COLORS.RESET)
+                end
             end
             
             -- Run after_each
@@ -669,9 +743,13 @@ function _M.run_tests(path)
         total_tests = total_tests + suite_total
         total_passed = total_passed + suite_passed
         total_failed = total_failed + suite_failed
+        total_assertions = (total_assertions or 0) + assertion_total
+        total_assertions_passed = (total_assertions_passed or 0) + assertion_passed
+        total_assertions_failed = (total_assertions_failed or 0) + assertion_failed
         
         -- Print suite summary
         ngx.say("\nSuite Summary for " .. test_file .. ":")
+        ngx.say("\nTests:")
         ngx.say("Total: " .. suite_total)
         ngx.say(_M.COLORS.GREEN .. "Passed: " .. suite_passed .. _M.COLORS.RESET)
         if suite_failed > 0 then
@@ -680,18 +758,38 @@ function _M.run_tests(path)
             ngx.say("Failed: " .. suite_failed)
         end
         
+        ngx.say("\nAssertions:")
+        ngx.say("Total: " .. assertion_total)
+        ngx.say(_M.COLORS.GREEN .. "Passed: " .. assertion_passed .. _M.COLORS.RESET)
+        if assertion_failed > 0 then
+            ngx.say(_M.COLORS.RED .. "Failed: " .. assertion_failed .. _M.COLORS.RESET)
+        else
+            ngx.say("Failed: " .. assertion_failed)
+        end
+        
         ::continue::
     end
     
     -- Print overall summary
     ngx.say(_M.COLORS.BLUE .. "\n=== Overall Test Summary ===\n" .. _M.COLORS.RESET)
     ngx.say("Total Test Files: " .. #test_files)
-    ngx.say("Total Tests: " .. total_tests)
-    ngx.say(_M.COLORS.GREEN .. "Total Passed: " .. total_passed .. _M.COLORS.RESET)
+    
+    ngx.say("\nTests:")
+    ngx.say("Total: " .. total_tests)
+    ngx.say(_M.COLORS.GREEN .. "Passed: " .. total_passed .. _M.COLORS.RESET)
     if total_failed > 0 then
-        ngx.say(_M.COLORS.RED .. "Total Failed: " .. total_failed .. _M.COLORS.RESET)
+        ngx.say(_M.COLORS.RED .. "Failed: " .. total_failed .. _M.COLORS.RESET)
     else
-        ngx.say("Total Failed: " .. total_failed)
+        ngx.say("Failed: " .. total_failed)
+    end
+    
+    ngx.say("\nAssertions:")
+    ngx.say("Total: " .. total_assertions)
+    ngx.say(_M.COLORS.GREEN .. "Passed: " .. total_assertions_passed .. _M.COLORS.RESET)
+    if total_assertions_failed > 0 then
+        ngx.say(_M.COLORS.RED .. "Failed: " .. total_assertions_failed .. _M.COLORS.RESET)
+    else
+        ngx.say("Failed: " .. total_assertions_failed)
     end
     
     -- Print failed tests if any
