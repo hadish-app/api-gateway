@@ -162,6 +162,76 @@ local validators = {
         ngx.log(ngx.WARN, string.format("[cors] Allowed origins validation failed - no match. origin=%s. %s", 
             cors_ctx.origin, cors_ctx.log_context))
         return false
+    end,
+
+    validate_preflight_method = function(cors_ctx)
+        local request_method = cors_ctx.headers["Access-Control-Request-Method"]
+        
+        if not request_method then
+            return false, "Missing Access-Control-Request-Method", "Preflight request requires Access-Control-Request-Method header"
+        end
+        
+        request_method = request_method:upper()
+        ngx.log(ngx.DEBUG, string.format("[cors] Preflight method validation started: %s. %s", 
+            request_method, cors_ctx.log_context))
+        
+        local method_allowed = false
+        for _, allowed_method in ipairs(cors_ctx.config.allow_methods) do
+            if request_method == allowed_method:upper() then
+                method_allowed = true
+                break
+            end
+        end
+        
+        if not method_allowed then
+            return false, "Method not allowed in preflight", request_method
+        end
+        
+        ngx.log(ngx.DEBUG, string.format("[cors] Preflight method validation successful. %s", cors_ctx.log_context))
+        return true
+    end,
+
+    validate_preflight_headers = function(cors_ctx)
+        local request_headers = cors_ctx.headers["Access-Control-Request-Headers"]
+        
+        if not request_headers then
+            ngx.log(ngx.DEBUG, string.format("[cors] No custom headers requested in preflight. %s", cors_ctx.log_context))
+            return true
+        end
+        
+        ngx.log(ngx.DEBUG, string.format("[cors] Preflight headers validation started: %s. %s", 
+            request_headers, cors_ctx.log_context))
+        
+        for header in request_headers:gmatch("([^,%s]+)") do
+            local lower_header = header:lower()
+            if not (cors_ctx.config.common_headers[lower_header] or cors_ctx.config.allow_headers[lower_header]) then
+                return false, "Header not allowed in preflight", header
+            end
+        end
+        
+        ngx.log(ngx.DEBUG, string.format("[cors] Preflight headers validation successful. %s", cors_ctx.log_context))
+        return true
+    end,
+
+    validate_request_method = function(cors_ctx)
+        local method = cors_ctx.method:upper()
+        ngx.log(ngx.DEBUG, string.format("[cors] Request method validation started: %s. %s", 
+            method, cors_ctx.log_context))
+        
+        local method_allowed = false
+        for _, allowed_method in ipairs(cors_ctx.config.allow_methods) do
+            if method == allowed_method:upper() then
+                method_allowed = true
+                break
+            end
+        end
+        
+        if not method_allowed then
+            return false, "Method not allowed", method
+        end
+        
+        ngx.log(ngx.DEBUG, string.format("[cors] Request method validation successful. %s", cors_ctx.log_context))
+        return true
     end
 }
 
@@ -187,5 +257,8 @@ end
 return {
     is_origin_allowed = is_origin_allowed,
     sanitize_header = utils.sanitize_header,
-    format_cors_error = utils.format_cors_error
+    format_cors_error = utils.format_cors_error,
+    validate_preflight_method = validators.validate_preflight_method,
+    validate_preflight_headers = validators.validate_preflight_headers,
+    validate_request_method = validators.validate_request_method
 }
