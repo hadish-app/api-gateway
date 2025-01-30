@@ -40,11 +40,9 @@ local function run_middleware_phases(incoming_id)
     local access_result = request_id.access:handle()
     local stored_id = request_id._M.get_request_id()
 
-    -- Run header filter phase with mocked headers
-    local original_header = mock_response_headers()
+    -- Run header filter phase (using test runner's mock)
     local header_result = request_id.header_filter:handle()
     local response_id = ngx.header["X-Request-ID"]
-    ngx.header = original_header
 
     return {
         access_result = access_result,
@@ -77,7 +75,7 @@ end
 -- 5. Test cases
 _M.tests = {
     {
-        name = "Test: New request ID generation",
+        name = "New request ID generation",
         func = function()
             -- Setup request without X-Request-ID
             test_runner.mock.set_headers({})
@@ -104,10 +102,15 @@ _M.tests = {
         end
     },
     {
-        name = "Test: Incoming request ID preservation",
+        name = "Incoming request ID preservation",
         func = function()
             -- Generate and set incoming request ID
             local incoming_id = request_id._M.generate_request_id()
+            ngx.log(ngx.DEBUG, "Generated incoming ID: " .. incoming_id)
+            
+            -- Log initial header state
+            ngx.log(ngx.DEBUG, "Initial response headers: " .. cjson.encode(ngx.header))
+            
             test_runner.mock.set_headers({
                 ["X-Request-ID"] = incoming_id
             })
@@ -116,6 +119,9 @@ _M.tests = {
             -- Run access phase
             local access_result = request_id.access:handle()
             test_runner.assert_true(access_result, "Access phase should succeed")
+            
+            -- Log headers after access phase
+            ngx.log(ngx.DEBUG, "Headers after access phase: " .. cjson.encode(ngx.header))
             
             -- Verify incoming ID was preserved
             local stored_id = request_id._M.get_request_id()
@@ -126,13 +132,17 @@ _M.tests = {
             local header_result = request_id.header_filter:handle()
             test_runner.assert_true(header_result, "Header filter phase should succeed")
             
+            -- Log headers after header filter phase
+            ngx.log(ngx.DEBUG, "Headers after header filter phase: " .. cjson.encode(ngx.header))
+            ngx.log(ngx.DEBUG, "Final X-Request-ID header value: " .. tostring(ngx.header["X-Request-ID"]))
+            
             -- Verify response header matches incoming ID
             test_runner.assert_equals(incoming_id, ngx.header["X-Request-ID"], 
                 "Response header should match incoming ID")
         end
     },
     {
-        name = "Test: Malicious request ID validation",
+        name = "Malicious request ID validation",
         func = function()
             -- Table of malicious request IDs to test
             local malicious_ids = {
@@ -193,19 +203,18 @@ _M.tests = {
 -- Cleanup function to run after each test
 function _M.after_each()
     ngx.log(ngx.DEBUG, "Running after_each cleanup for: request_id_test")
-    test_runner.reset_state()
-    
-    -- Log final state for debugging
-    ngx.log(ngx.DEBUG, "Final test state:")
+
+    ngx.log(ngx.DEBUG, "Before cleanup test state:")
     ngx.log(ngx.DEBUG, "ngx.status: " .. ngx.status)
     ngx.log(ngx.DEBUG, "ngx.ctx: " .. cjson.encode(ngx.ctx))
     ngx.log(ngx.DEBUG, "ngx.header: " .. cjson.encode(ngx.header))
-end
 
--- Cleanup function to run after all tests
-function _M.after_all()
-    ngx.log(ngx.DEBUG, "Running after_all cleanup for: request_id_test")
     test_runner.reset_state()
+    
+    ngx.log(ngx.DEBUG, "After cleanup test state:")
+    ngx.log(ngx.DEBUG, "ngx.status: " .. ngx.status)
+    ngx.log(ngx.DEBUG, "ngx.ctx: " .. cjson.encode(ngx.ctx))
+    ngx.log(ngx.DEBUG, "ngx.header: " .. cjson.encode(ngx.header))
 end
 
 return _M 

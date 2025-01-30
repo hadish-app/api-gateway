@@ -705,14 +705,13 @@ function _M.run_tests(path)
             assertion_failed = assertion_failed + (ngx.ctx.test_failures or 0)
             assertion_passed = assertion_passed + (ngx.ctx.test_successes or 0)
             
-            if ok and ngx.ctx.test_failures == 0 then
+            if ok then
                 suite_passed = suite_passed + 1
+                ngx.log(ngx.DEBUG, "[TEST_RUNNER] Test passed: " .. test.name)
             else
                 suite_failed = suite_failed + 1
-                if not ok then
-                    ngx.log(ngx.ERR, "[TEST_RUNNER] Test failed: " .. tostring(err))
-                    ngx.say(_M.COLORS.RED .. "Error: " .. err .. _M.COLORS.RESET)
-                end
+                ngx.log(ngx.ERR, "[TEST_RUNNER] Test failed: " .. tostring(err))
+                ngx.say(_M.COLORS.RED .. "Error: " .. err .. _M.COLORS.RESET)
             end
             
             -- Run after_each

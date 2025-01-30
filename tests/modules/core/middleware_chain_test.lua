@@ -68,7 +68,7 @@ end
 
 _M.tests = {
     {
-        name = "Test: Basic middleware addition and execution",
+        name = "Basic middleware addition and execution",
         func = function()
             reset_state()
             
@@ -129,7 +129,7 @@ _M.tests = {
     },
     
     {
-        name = "Test: Priority ordering",
+        name = "Priority ordering",
         func = function()
             reset_state()
             
@@ -169,7 +169,7 @@ _M.tests = {
     },
     
     {
-        name = "Test: Route-specific middleware",
+        name = "Route-specific middleware",
         func = function()
             reset_state()
             
@@ -210,7 +210,7 @@ _M.tests = {
     },
     
     {
-        name = "Test: Middleware state management",
+        name = "Middleware state management",
         func = function()
             reset_state()
             
@@ -261,7 +261,7 @@ _M.tests = {
     },
     
     {
-        name = "Test: Error handling",
+        name = "Error handling",
         func = function()
             reset_state()
             
@@ -292,7 +292,7 @@ _M.tests = {
     },
     
     {
-        name = "Test: Chain interruption",
+        name = "Chain interruption",
         func = function()
             reset_state()
             

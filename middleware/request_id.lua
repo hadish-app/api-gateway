@@ -110,7 +110,7 @@ local function handle_header_filter(self)
         return false  
     end
 
-    local existing_header = ngx.req.get_headers()[config.header_name]
+    local existing_header = ngx.header[config.header_name]
     if existing_header then
         -- Validate existing header format
         if not _M.is_valid_uuid(existing_header) then
